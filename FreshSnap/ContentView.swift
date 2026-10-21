@@ -6,28 +6,28 @@
 //
 
 import SwiftUI
-
-// FreshSnap – Week 5, Step 2
+ 
+// FreshSnap – Week 5, Steps 2 to 5
 // Three tabs: Fridge, Recipes and Scan.
 // Profile opens from a button in the top-right corner of every screen.
-
+ 
 struct ContentView: View {
     var body: some View {
         TabView {
             FridgeView()
                 .tabItem { Label("Fridge", systemImage: "refrigerator") }
-
+ 
             RecipesView()
                 .tabItem { Label("Recipes", systemImage: "fork.knife") }
-
+ 
             ScanView()
                 .tabItem { Label("Scan", systemImage: "camera.viewfinder") }
         }
     }
 }
-
+ 
 // MARK: - Profile button (top right on every screen)
-
+ 
 struct ProfileButton: ViewModifier {
     func body(content: Content) -> some View {
         content.toolbar {
@@ -42,15 +42,15 @@ struct ProfileButton: ViewModifier {
         }
     }
 }
-
+ 
 extension View {
     func profileButton() -> some View {
         modifier(ProfileButton())
     }
 }
-
+ 
 // MARK: - Placeholder screens (replaced later in Week 5 and Week 6)
-
+ 
 struct FridgeView: View {
     var body: some View {
         NavigationStack {
@@ -64,7 +64,7 @@ struct FridgeView: View {
         }
     }
 }
-
+ 
 struct RecipesView: View {
     var body: some View {
         NavigationStack {
@@ -78,7 +78,7 @@ struct RecipesView: View {
         }
     }
 }
-
+ 
 struct ScanView: View {
     var body: some View {
         NavigationStack {
@@ -92,19 +92,28 @@ struct ScanView: View {
         }
     }
 }
-
+ 
 // Profile slides in on top of the current tab, with a back button.
 struct ProfileView: View {
+    @Environment(AuthManager.self) private var auth
+ 
     var body: some View {
-        ContentUnavailableView(
-            "Profile",
-            systemImage: "person.crop.circle",
-            description: Text("Your details, money saved and settings will live here.")
-        )
+        List {
+            Section("Your details") {
+                LabeledContent("Name", value: auth.name)
+                LabeledContent("Email", value: auth.email)
+            }
+ 
+            Section {
+                Button("Log out", role: .destructive) {
+                    auth.logOut()
+                }
+            }
+        }
         .navigationTitle("Profile")
     }
 }
-
+ 
 #Preview {
     ContentView()
 }
