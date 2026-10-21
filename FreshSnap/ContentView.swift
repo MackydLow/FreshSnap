@@ -8,7 +8,7 @@
 import SwiftUI
 import SwiftData
  
-// FreshSnap – Week 5, Steps 2 to 9
+// FreshSnap – Week 5, Steps 2 to 10
 // Three tabs: Fridge, Recipes and Scan.
 // Profile opens from a button in the top-right corner of every screen.
  
@@ -118,7 +118,20 @@ struct ProfileView: View {
             }
  
             Section {
+                Button("Send a test reminder") {
+                    ReminderManager.sendTestReminder(
+                        for: myFood.filter { $0.status == .inFridge }
+                    )
+                }
+            } header: {
+                Text("Reminders")
+            } footer: {
+                Text("Arrives in 5 seconds. Your daily reminder comes at 9am.")
+            }
+ 
+            Section {
                 Button("Log out", role: .destructive) {
+                    ReminderManager.cancelAll()
                     auth.logOut()
                 }
             }

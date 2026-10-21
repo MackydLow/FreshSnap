@@ -1,7 +1,7 @@
 import SwiftUI
 import SwiftData
  
-// FreshSnap – Week 5, Steps 8 and 9
+// FreshSnap – Week 5, Steps 8 to 10
 // The virtual fridge: food you still have, soonest use-by date first.
  
 struct FridgeView: View {
@@ -61,6 +61,13 @@ struct FridgeView: View {
             .profileButton()
             .sheet(isPresented: $showingAddFood) {
                 AddProductView(ownerID: auth.userID)
+            }
+            .task {
+                await ReminderManager.requestPermission()
+            }
+            // Reschedule reminders when food is added, used or thrown away
+            .task(id: fridge.count) {
+                ReminderManager.scheduleReminders(for: fridge)
             }
         }
     }
