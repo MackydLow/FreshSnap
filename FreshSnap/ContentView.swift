@@ -1,8 +1,8 @@
 //
-//  ContentView.swift
+//  FridgeView.swift
 //  FreshSnap
 //
-//  Created by Mack Low on 21/10/2026.
+//  Created by Mackenzie Low on 21/10/2026.
 //
 
 import SwiftUI
@@ -49,21 +49,8 @@ extension View {
     }
 }
  
-// MARK: - Placeholder screens (replaced later in Week 5 and Week 6)
- 
-struct FridgeView: View {
-    var body: some View {
-        NavigationStack {
-            ContentUnavailableView(
-                "Your fridge is empty",
-                systemImage: "refrigerator",
-                description: Text("Scan a receipt or add food by hand.")
-            )
-            .navigationTitle("Fridge")
-            .profileButton()
-        }
-    }
-}
+// MARK: - Placeholder screens (replaced in Week 6)
+// FridgeView is in FridgeView.swift
  
 struct RecipesView: View {
     var body: some View {
@@ -112,8 +99,4 @@ struct ProfileView: View {
         }
         .navigationTitle("Profile")
     }
-}
- 
-#Preview {
-    ContentView()
 }

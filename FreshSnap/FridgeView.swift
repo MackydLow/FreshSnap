@@ -1,102 +1,86 @@
-//
-//  FridgeView.swift
-//  FreshSnap
-//
-//  Created by Mackenzie Low on 21/10/2026.
-//
-
 import SwiftUI
- 
-// FreshSnap – Week 5, Steps 2 to 5
-// Three tabs: Fridge, Recipes and Scan.
-// Profile opens from a button in the top-right corner of every screen.
- 
-struct ContentView: View {
-    var body: some View {
-        TabView {
-            FridgeView()
-                .tabItem { Label("Fridge", systemImage: "refrigerator") }
- 
-            RecipesView()
-                .tabItem { Label("Recipes", systemImage: "fork.knife") }
- 
-            ScanView()
-                .tabItem { Label("Scan", systemImage: "camera.viewfinder") }
-        }
-    }
-}
- 
-// MARK: - Profile button (top right on every screen)
- 
-struct ProfileButton: ViewModifier {
-    func body(content: Content) -> some View {
-        content.toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                NavigationLink {
-                    ProfileView()
-                } label: {
-                    Image(systemName: "person.crop.circle")
-                        .accessibilityLabel("Profile")
-                }
-            }
-        }
-    }
-}
- 
-extension View {
-    func profileButton() -> some View {
-        modifier(ProfileButton())
-    }
-}
- 
-// MARK: - Placeholder screens (replaced in Week 6)
-// FridgeView is in FridgeView.swift
- 
-struct RecipesView: View {
-    var body: some View {
-        NavigationStack {
-            ContentUnavailableView(
-                "No recipes yet",
-                systemImage: "fork.knife",
-                description: Text("Add food to your fridge to see meal ideas.")
-            )
-            .navigationTitle("Recipes")
-            .profileButton()
-        }
-    }
-}
- 
-struct ScanView: View {
-    var body: some View {
-        NavigationStack {
-            ContentUnavailableView(
-                "Scanning comes in Week 6",
-                systemImage: "camera.viewfinder",
-                description: Text("Receipt, label and barcode scanning will live here.")
-            )
-            .navigationTitle("Scan")
-            .profileButton()
-        }
-    }
-}
- 
-// Profile slides in on top of the current tab, with a back button.
-struct ProfileView: View {
+import SwiftData
+
+// FreshSnap – Week 5, Step 8
+// The virtual fridge: food you still have, soonest use-by date first.
+
+struct FridgeView: View {
     @Environment(AuthManager.self) private var auth
- 
+    @Query(sort: \FoodItem.expiryDate) private var allFood: [FoodItem]
+    @State private var showingAddFood = false
+
+    // Only this user's food that is still in the fridge.
+    private var fridge: [FoodItem] {
+        allFood.filter { $0.ownerID == auth.userID && $0.status == .inFridge }
+    }
+
+    private let columns = [
+        GridItem(.flexible(), spacing: 12),
+        GridItem(.flexible(), spacing: 12)
+    ]
+
     var body: some View {
-        List {
-            Section("Your details") {
-                LabeledContent("Name", value: auth.name)
-                LabeledContent("Email", value: auth.email)
-            }
- 
-            Section {
-                Button("Log out", role: .destructive) {
-                    auth.logOut()
+        NavigationStack {
+            Group {
+                if fridge.isEmpty {
+                    ContentUnavailableView {
+                        Label("Your fridge is empty", systemImage: "refrigerator")
+                    } description: {
+                        Text("Scan a receipt or add food by hand.")
+                    } actions: {
+                        Button("Add food") { showingAddFood = true }
+                            .buttonStyle(.borderedProminent)
+                    }
+                } else {
+                    ScrollView {
+                        HStack {
+                            Spacer()
+                            Button {
+                                showingAddFood = true
+                            } label: {
+                                Label("Add food", systemImage: "plus")
+                            }
+                        }
+                        .padding(.horizontal)
+
+                        LazyVGrid(columns: columns, spacing: 12) {
+                            ForEach(fridge) { food in
+                                FoodCard(food: food)
+                            }
+                        }
+                        .padding(.horizontal)
+                    }
                 }
             }
+            .navigationTitle("Fridge")
+            .profileButton()
+            .sheet(isPresented: $showingAddFood) {
+                AddProductView(ownerID: auth.userID)
+            }
         }
-        .navigationTitle("Profile")
+    }
+}
+
+struct FoodCard: View {
+    let food: FoodItem
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(food.name)
+                .font(.headline)
+                .lineLimit(2)
+            Text(food.expiryText)
+                .font(.subheadline)
+                .foregroundStyle(food.daysLeft <= 1 ? .red : .secondary)
+            if !food.amount.isEmpty {
+                Text(food.amount)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity, minHeight: 100, alignment: .topLeading)
+        .padding()
+        .background(Color(.secondarySystemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 }
