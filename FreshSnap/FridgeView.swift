@@ -1,24 +1,24 @@
 import SwiftUI
 import SwiftData
-
-// FreshSnap – Week 5, Step 8
+ 
+// FreshSnap – Week 5, Steps 8 and 9
 // The virtual fridge: food you still have, soonest use-by date first.
-
+ 
 struct FridgeView: View {
     @Environment(AuthManager.self) private var auth
     @Query(sort: \FoodItem.expiryDate) private var allFood: [FoodItem]
     @State private var showingAddFood = false
-
+ 
     // Only this user's food that is still in the fridge.
     private var fridge: [FoodItem] {
         allFood.filter { $0.ownerID == auth.userID && $0.status == .inFridge }
     }
-
+ 
     private let columns = [
         GridItem(.flexible(), spacing: 12),
         GridItem(.flexible(), spacing: 12)
     ]
-
+ 
     var body: some View {
         NavigationStack {
             Group {
@@ -42,10 +42,15 @@ struct FridgeView: View {
                             }
                         }
                         .padding(.horizontal)
-
+ 
                         LazyVGrid(columns: columns, spacing: 12) {
                             ForEach(fridge) { food in
-                                FoodCard(food: food)
+                                NavigationLink {
+                                    FoodDetailView(food: food)
+                                } label: {
+                                    FoodCard(food: food)
+                                }
+                                .buttonStyle(.plain)
                             }
                         }
                         .padding(.horizontal)
@@ -60,10 +65,10 @@ struct FridgeView: View {
         }
     }
 }
-
+ 
 struct FoodCard: View {
     let food: FoodItem
-
+ 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(food.name)

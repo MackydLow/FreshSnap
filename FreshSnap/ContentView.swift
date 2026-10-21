@@ -6,8 +6,9 @@
 //
 
 import SwiftUI
+import SwiftData
  
-// FreshSnap – Week 5, Steps 2 to 5
+// FreshSnap – Week 5, Steps 2 to 9
 // Three tabs: Fridge, Recipes and Scan.
 // Profile opens from a button in the top-right corner of every screen.
  
@@ -83,9 +84,34 @@ struct ScanView: View {
 // Profile slides in on top of the current tab, with a back button.
 struct ProfileView: View {
     @Environment(AuthManager.self) private var auth
+    @Query private var allFood: [FoodItem]
+ 
+    // Only this user's food
+    private var myFood: [FoodItem] {
+        allFood.filter { $0.ownerID == auth.userID }
+    }
+ 
+    private var moneySaved: Double {
+        myFood.filter { $0.status == .used }.reduce(0) { $0 + $1.price }
+    }
+ 
+    private var usedCount: Int {
+        myFood.filter { $0.status == .used }.count
+    }
+ 
+    private var thrownAwayCount: Int {
+        myFood.filter { $0.status == .thrownAway }.count
+    }
  
     var body: some View {
         List {
+            Section("Money saved") {
+                Text(moneySaved, format: .currency(code: "GBP"))
+                    .font(.largeTitle.bold())
+                LabeledContent("Food used", value: "\(usedCount)")
+                LabeledContent("Food thrown away", value: "\(thrownAwayCount)")
+            }
+ 
             Section("Your details") {
                 LabeledContent("Name", value: auth.name)
                 LabeledContent("Email", value: auth.email)
