@@ -8,7 +8,7 @@
 import SwiftUI
 import SwiftData
  
-// FreshSnap – Week 5, Steps 2 to 10
+// FreshSnap – Weeks 5 and 6
 // Three tabs: Fridge, Recipes and Scan.
 // Profile opens from a button in the top-right corner of every screen.
  
@@ -50,8 +50,8 @@ extension View {
     }
 }
  
-// MARK: - Placeholder screens (replaced in Week 6)
-// FridgeView is in FridgeView.swift
+// MARK: - Placeholder screen (replaced in Week 6, Step 5)
+// FridgeView is in FridgeView.swift and ScanView is in ScanView.swift
  
 struct RecipesView: View {
     var body: some View {
@@ -62,20 +62,6 @@ struct RecipesView: View {
                 description: Text("Add food to your fridge to see meal ideas.")
             )
             .navigationTitle("Recipes")
-            .profileButton()
-        }
-    }
-}
- 
-struct ScanView: View {
-    var body: some View {
-        NavigationStack {
-            ContentUnavailableView(
-                "Scanning comes in Week 6",
-                systemImage: "camera.viewfinder",
-                description: Text("Receipt, label and barcode scanning will live here.")
-            )
-            .navigationTitle("Scan")
             .profileButton()
         }
     }

@@ -14,9 +14,22 @@
 		0BDAAE753088CF950084DD4A /* FreshSnap.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FreshSnap.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		0B6CCF3A309523360041AEAE /* Exceptions for "FreshSnap" folder in "FreshSnap" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 0BDAAE743088CF950084DD4A /* FreshSnap */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		0BDAAE773088CF950084DD4A /* FreshSnap */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				0B6CCF3A309523360041AEAE /* Exceptions for "FreshSnap" folder in "FreshSnap" target */,
+			);
 			path = FreshSnap;
 			sourceTree = "<group>";
 		};
@@ -265,6 +278,8 @@
 				DEVELOPMENT_TEAM = HP5B2LVX3T;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = FreshSnap/Info.plist;
+				INFOPLIST_KEY_NSCameraUsageDescription = "FreshSnap uses the camera to scan receipts, use-by dates and barcodes.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -298,6 +313,8 @@
 				DEVELOPMENT_TEAM = HP5B2LVX3T;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = FreshSnap/Info.plist;
+				INFOPLIST_KEY_NSCameraUsageDescription = "FreshSnap uses the camera to scan receipts, use-by dates and barcodes.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
