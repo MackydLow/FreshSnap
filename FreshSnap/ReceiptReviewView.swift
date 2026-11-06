@@ -1,0 +1,111 @@
+//
+//  ReceiptReviewView.swift
+//  FreshSnap
+//
+//  Created by Mackenzie Low on 30/10/2026.
+//
+
+import SwiftUI
+import SwiftData
+ 
+// FreshSnap – Week 6, Step 4
+// Review scan for receipts: check every item, fix names and dates,
+// untick anything that isn't food, then add them all at once.
+// (Flow: review the scan -> any changes? -> make the changes -> submit scan)
+ 
+struct ReceiptReviewView: View {
+    let ownerID: String
+    @State var items: [ReceiptItem]
+ 
+    @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) private var dismiss
+ 
+    private var chosen: [ReceiptItem] {
+        items.filter(\.include)
+    }
+ 
+    private var canAdd: Bool {
+        !chosen.isEmpty && chosen.allSatisfy { !$0.name.trimmingCharacters(in: .whitespaces).isEmpty }
+    }
+ 
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    Text("Found \(items.count) items. Check the names and use-by dates, untick anything that isn't food, then add them. Dates are estimates, so check the packs.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+ 
+                ForEach($items) { $item in
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Button {
+                                item.include.toggle()
+                            } label: {
+                                Image(systemName: item.include ? "checkmark.circle.fill" : "circle")
+                                    .font(.title3)
+                            }
+                            .buttonStyle(.borderless)
+                            .accessibilityLabel(item.include ? "Included" : "Not included")
+ 
+                            TextField("Product name", text: $item.name)
+                                .font(.headline)
+                        }
+ 
+                        Text("On receipt: \(item.receiptText)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+ 
+                        if item.include {
+                            DatePicker("Use by", selection: $item.expiryDate, displayedComponents: .date)
+ 
+                            Picker("Category", selection: $item.category) {
+                                ForEach(FoodCategory.all, id: \.self) { Text($0) }
+                            }
+                            .onChange(of: item.category) { _, newCategory in
+                                item.expiryDate = ShelfLife.estimatedUseBy(forCategory: newCategory)
+                            }
+ 
+                            HStack {
+                                Text(item.amount.isEmpty ? "No size on receipt" : item.amount)
+                                Spacer()
+                                Text(item.price, format: .currency(code: "GBP"))
+                            }
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                    .opacity(item.include ? 1 : 0.5)
+                }
+                .onDelete { items.remove(atOffsets: $0) }
+            }
+            .navigationTitle("Review scan")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Add \(chosen.count)") { addToFridge() }
+                        .disabled(!canAdd)
+                }
+            }
+        }
+    }
+ 
+    private func addToFridge() {
+        for item in chosen {
+            modelContext.insert(FoodItem(
+                ownerID: ownerID,
+                name: item.name.trimmingCharacters(in: .whitespaces),
+                expiryDate: item.expiryDate,
+                amount: item.amount,
+                price: item.price,
+                category: item.category
+            ))
+        }
+        dismiss()
+    }
+}
