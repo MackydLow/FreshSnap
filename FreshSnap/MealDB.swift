@@ -36,8 +36,41 @@ struct MealDetail {
     let sourceURL: URL?
 }
  
+// The diet choices from Settings
+struct DietNeeds: Equatable {
+    var vegetarian = false
+    var vegan = false
+    var nutFree = false
+    var dairyFree = false
+ 
+    var isEmpty: Bool { !vegetarian && !vegan && !nutFree && !dairyFree }
+ 
+    // e.g. "Vegetarian, nut-free"
+    var summary: String {
+        var parts: [String] = []
+        if vegan { parts.append("vegan") } else if vegetarian { parts.append("vegetarian") }
+        if nutFree { parts.append("nut-free") }
+        if dairyFree && !vegan { parts.append("dairy-free") }
+        let text = parts.joined(separator: ", ")
+        return text.prefix(1).uppercased() + text.dropFirst()
+    }
+ 
+    static var current: DietNeeds {
+        let defaults = UserDefaults.standard
+        return DietNeeds(
+            vegetarian: defaults.bool(forKey: AppSettings.vegetarianKey),
+            vegan: defaults.bool(forKey: AppSettings.veganKey),
+            nutFree: defaults.bool(forKey: AppSettings.nutFreeKey),
+            dairyFree: defaults.bool(forKey: AppSettings.dairyFreeKey)
+        )
+    }
+}
+ 
 enum MealDB {
     private static let baseURL = "https://www.themealdb.com/api/json/v1/1/"
+ 
+    // Full recipes already downloaded while the app is open
+    private static var detailCache: [String: MealDetail] = [:]
  
     // Meals that use one ingredient (filter.php gives only the name, photo and ID).
     static func meals(withIngredient ingredient: String) async throws -> [MealSummary] {
@@ -60,6 +93,7 @@ enum MealDB {
  
     // The full recipe (lookup.php), loaded when the user opens it.
     static func meal(id: String) async throws -> MealDetail? {
+        if let cached = detailCache[id] { return cached }
         guard let url = URL(string: baseURL + "lookup.php?i=" + id) else { return nil }
         let json = try await fetchJSON(from: url)
         guard let meal = (json["meals"] as? [[String: Any]])?.first,
@@ -76,7 +110,7 @@ enum MealDB {
             ingredients.append(MealIngredient(name: ingredient, measure: measure))
         }
  
-        return MealDetail(
+        let detail = MealDetail(
             id: id,
             name: name,
             category: meal["strCategory"] as? String ?? "",
@@ -87,6 +121,63 @@ enum MealDB {
             youtubeURL: link(from: meal["strYoutube"]),
             sourceURL: link(from: meal["strSource"])
         )
+        detailCache[id] = detail
+        return detail
+    }
+ 
+    // MARK: Diet checks
+ 
+    private static let meatCategories: Set<String> = ["beef", "chicken", "lamb", "pork", "seafood", "goat"]
+ 
+    private static let meatAndFishWords = [
+        "chicken", "beef", "pork", "lamb", "mutton", "bacon", "ham", "sausage", "turkey",
+        "duck", "goat", "veal", "venison", "chorizo", "salami", "pancetta", "prosciutto",
+        "pepperoni", "mince", "steak", "meat", "fish", "salmon", "tuna", "cod", "haddock",
+        "mackerel", "sardine", "anchov", "prawn", "shrimp", "mussel", "clam", "oyster",
+        "crab", "lobster", "squid", "scallop", "gelatin", "lard", "suet", "oxtail", "liver"
+    ]
+ 
+    private static let animalProductWords = ["egg", "honey", "mayonnaise", "ghee"]
+ 
+    private static let dairyWords = [
+        "milk", "butter", "cheese", "cream", "yogurt", "yoghurt", "parmesan", "mozzarella",
+        "cheddar", "feta", "ricotta", "mascarpone", "paneer", "creme fraiche", "crème fraîche",
+        "buttermilk", "custard", "ghee", "gruyere", "brie", "halloumi"
+    ]
+ 
+    // Plant milks and creams that are fine for dairy-free and vegan diets
+    private static let plantWords = ["coconut", "almond milk", "oat milk", "soy", "soya", "rice milk", "peanut butter", "cocoa butter", "vegan"]
+ 
+    private static let nutWords = [
+        "nut", "almond", "peanut", "cashew", "walnut", "pecan", "hazelnut", "pistachio",
+        "macadamia", "brazil", "praline", "marzipan", "frangipane", "satay", "nutella", "pesto"
+    ]
+ 
+    // Words that contain "nut" but aren't nuts
+    private static let notNuts = ["nutmeg", "coconut", "butternut", "doughnut", "donut"]
+ 
+    // True if the recipe suits every diet need that's switched on
+    static func suits(_ meal: MealDetail, _ diet: DietNeeds) -> Bool {
+        let ingredients = meal.ingredients.map { $0.name.lowercased() }
+ 
+        func contains(_ words: [String], ignoring exceptions: [String] = []) -> Bool {
+            ingredients.contains { ingredient in
+                guard !exceptions.contains(where: { ingredient.contains($0) }) else { return false }
+                return words.contains { ingredient.contains($0) }
+            }
+        }
+ 
+        if diet.vegetarian || diet.vegan {
+            if meatCategories.contains(meal.category.lowercased()) { return false }
+            if contains(meatAndFishWords) { return false }
+        }
+        if diet.vegan {
+            if contains(animalProductWords, ignoring: ["eggplant"]) { return false }
+            if contains(dairyWords, ignoring: plantWords) { return false }
+        }
+        if diet.dairyFree && contains(dairyWords, ignoring: plantWords) { return false }
+        if diet.nutFree && contains(nutWords, ignoring: notNuts) { return false }
+        return true
     }
  
     // MARK: Turning fridge names into search words

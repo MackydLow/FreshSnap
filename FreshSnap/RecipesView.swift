@@ -8,7 +8,7 @@
 import SwiftUI
 import SwiftData
  
-// FreshSnap – Week 6, Step 6
+// FreshSnap – Week 6, Step 6 (Week 7: diet filter)
 // The Recipes tab: meal ideas from TheMealDB using food that needs eating first.
 // Flow: view recipes -> filter by ingredients -> click on recipe to view it.
  
@@ -28,7 +28,20 @@ struct RecipesView: View {
     @State private var chosenDefaults = false
     @State private var results: [RecipeResult] = []
     @State private var isLoading = false
+    @State private var loadingMessage = "Finding recipes…"
     @State private var failed = false
+ 
+    // Diet choices from Settings; changing them reloads the recipes
+    @AppStorage(AppSettings.vegetarianKey) private var vegetarian = false
+    @AppStorage(AppSettings.veganKey) private var vegan = false
+    @AppStorage(AppSettings.nutFreeKey) private var nutFree = false
+    @AppStorage(AppSettings.dairyFreeKey) private var dairyFree = false
+ 
+    private var diet: DietNeeds {
+        DietNeeds(vegetarian: vegetarian, vegan: vegan, nutFree: nutFree, dairyFree: dairyFree)
+    }
+ 
+    private let maxDietChecks = 30   // recipes checked behind the scenes per search
  
     private let maxIngredients = 5
     private let columns = [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
@@ -41,9 +54,9 @@ struct RecipesView: View {
         fridge.filter { selected.contains($0.persistentModelID) }
     }
  
-    // Changes whenever the selection changes, which reloads the recipes
+    // Changes whenever the selection or diet changes, which reloads the recipes
     private var selectionKey: String {
-        chosenFood.map(\.name).sorted().joined(separator: "|")
+        chosenFood.map(\.name).sorted().joined(separator: "|") + "#" + diet.summary
     }
  
     var body: some View {
@@ -106,6 +119,13 @@ struct RecipesView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .padding(.horizontal)
+ 
+            if !diet.isEmpty {
+                Label("Only showing meals that are: \(diet.summary.lowercased())", systemImage: "leaf")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.green)
+                    .padding(.horizontal)
+            }
         }
     }
  
@@ -117,7 +137,7 @@ struct RecipesView: View {
             ContentUnavailableView("Choose some food", systemImage: "hand.tap",
                                    description: Text("Tap food above to find meals that use it."))
         } else if isLoading {
-            ProgressView("Finding recipes…")
+            ProgressView(loadingMessage)
                 .frame(maxWidth: .infinity)
                 .padding(.top, 40)
         } else if failed {
@@ -130,7 +150,9 @@ struct RecipesView: View {
             }
         } else if results.isEmpty {
             ContentUnavailableView("No recipes found", systemImage: "fork.knife",
-                                   description: Text("Try choosing different or fewer foods."))
+                                   description: Text(diet.isEmpty
+                                       ? "Try choosing different or fewer foods."
+                                       : "No recipes using this food suit your diet. Try choosing different foods."))
         } else {
             LazyVGrid(columns: columns, spacing: 12) {
                 ForEach(results) { result in
@@ -174,6 +196,7 @@ struct RecipesView: View {
         }
  
         isLoading = true
+        loadingMessage = "Finding recipes…"
         failed = false
         var found: [String: RecipeResult] = [:]
         var anySucceeded = false
@@ -204,11 +227,28 @@ struct RecipesView: View {
         }
  
         // Meals using the most chosen food first, then the most urgent food
-        results = found.values.sorted {
+        var ranked = found.values.sorted {
             if $0.uses.count != $1.uses.count { return $0.uses.count > $1.uses.count }
             if $0.soonestDaysLeft != $1.soonestDaysLeft { return $0.soonestDaysLeft < $1.soonestDaysLeft }
             return $0.meal.name < $1.meal.name
         }
+ 
+        // Diet: open each recipe behind the scenes and check its ingredients.
+        // Recipes that can't be checked are left out, to be safe.
+        let needs = diet
+        if !needs.isEmpty {
+            loadingMessage = "Checking recipes suit your diet…"
+            var suitable: [RecipeResult] = []
+            for result in ranked.prefix(maxDietChecks) {
+                if let detail = try? await MealDB.meal(id: result.meal.id),
+                   MealDB.suits(detail, needs) {
+                    suitable.append(result)
+                }
+            }
+            ranked = suitable
+        }
+ 
+        results = ranked
         failed = !anySucceeded
         isLoading = false
     }
