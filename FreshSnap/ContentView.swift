@@ -89,15 +89,13 @@ struct ProfileView: View {
             }
  
             Section {
-                Button("Send a test reminder") {
-                    ReminderManager.sendTestReminder(
-                        for: myFood.filter { $0.status == .inFridge }
-                    )
+                NavigationLink {
+                    SettingsView()
+                } label: {
+                    Label("Settings", systemImage: "gearshape")
                 }
-            } header: {
-                Text("Reminders")
             } footer: {
-                Text("Arrives in 5 seconds. Your daily reminder comes at 9am.")
+                Text("Reminder time, diet and privacy.")
             }
  
             Section {

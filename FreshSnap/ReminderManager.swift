@@ -8,14 +8,14 @@
 import Foundation
 import UserNotifications
  
-// FreshSnap – Week 5, Step 10
+// FreshSnap – Week 5, Step 10 (Week 7: time and warning period from Settings)
 // One daily summary of food that needs using, instead of one alert per item.
 // Scheduled on the phone (local notifications), so it works offline.
  
 @MainActor
 enum ReminderManager {
-    static let reminderHour = 9          // Week 7: the user picks this in Settings
     static let daysAhead = 7             // keeps well under iOS's 64-notification limit
+    // The reminder time and warning period come from Settings (Week 7)
  
     // Asks for permission. iOS only shows this pop-up once.
     static func requestPermission() async {
@@ -34,14 +34,15 @@ enum ReminderManager {
  
         for dayOffset in 0..<daysAhead {
             guard let day = calendar.date(byAdding: .day, value: dayOffset, to: today),
-                  let fireDate = calendar.date(bySettingHour: reminderHour, minute: 0, second: 0, of: day),
+                  let fireDate = calendar.date(bySettingHour: AppSettings.reminderHour,
+                                               minute: AppSettings.reminderMinute, second: 0, of: day),
                   fireDate > .now else { continue }
  
-            // Food that must be used on this day or the next
+            // Food that must be used within the chosen warning period
             let dueSoon = food.filter {
                 let expiry = calendar.startOfDay(for: $0.expiryDate)
                 let days = calendar.dateComponents([.day], from: day, to: expiry).day ?? 0
-                return days >= 0 && days <= 1
+                return days >= 0 && days <= AppSettings.warnDays
             }
             guard !dueSoon.isEmpty else { continue }
  
@@ -58,12 +59,12 @@ enum ReminderManager {
  
     // For testing: sends today's summary 5 seconds from now.
     static func sendTestReminder(for food: [FoodItem]) {
-        let dueSoon = food.filter { $0.daysLeft <= 1 }
+        let dueSoon = food.filter { $0.daysLeft <= AppSettings.warnDays }
  
         let content = UNMutableNotificationContent()
         content.title = "Use it before you lose it"
         content.body = dueSoon.isEmpty
-            ? "Nothing needs using in the next two days."
+            ? "Nothing needs using soon."
             : summary(of: dueSoon)
         content.sound = .default
  
