@@ -8,7 +8,7 @@
 import SwiftUI
 import SwiftData
  
-// FreshSnap – Week 6, Step 4
+// FreshSnap – Week 6, Steps 4 and 5
 // Review scan for receipts: check every item, fix names and dates,
 // untick anything that isn't food, then add them all at once.
 // (Flow: review the scan -> any changes? -> make the changes -> submit scan)
@@ -58,13 +58,21 @@ struct ReceiptReviewView: View {
                             .foregroundStyle(.secondary)
  
                         if item.include {
+                            Text("Use-by estimate: \(item.estimateSource)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+ 
+                        if item.include {
                             DatePicker("Use by", selection: $item.expiryDate, displayedComponents: .date)
  
                             Picker("Category", selection: $item.category) {
                                 ForEach(FoodCategory.all, id: \.self) { Text($0) }
                             }
                             .onChange(of: item.category) { _, newCategory in
-                                item.expiryDate = ShelfLife.estimatedUseBy(forCategory: newCategory)
+                                let estimate = ShelfLife.estimate(forName: item.name, category: newCategory)
+                                item.expiryDate = estimate.date
+                                item.estimateSource = estimate.source
                             }
  
                             HStack {

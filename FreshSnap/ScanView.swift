@@ -9,9 +9,11 @@ import SwiftUI
 import VisionKit
 import AVFoundation
  
-// FreshSnap – Week 6, Step 1
+// FreshSnap – Week 6, Steps 1 to 5
 // The Scan tab: live camera with Receipt, Label and Barcode modes.
-// For now it shows what it read; Steps 2–4 turn this into food for the fridge.
+// Receipt -> Vision + abbreviation dictionary -> Review scan (many items)
+// Label   -> use-by date reader                -> Review scan
+// Barcode -> Open Food Facts                   -> Review scan
  
 enum ScanMode: String, CaseIterable, Identifiable {
     case receipt = "Receipt"
@@ -22,18 +24,27 @@ enum ScanMode: String, CaseIterable, Identifiable {
  
     var hint: String {
         switch self {
-        case .receipt: return "Fit the receipt's item list in view, then tap Scan."
+        case .receipt: return "Fit the receipt's item list in view, hold steady, then tap Scan."
         case .label: return "Point at the use-by date, then tap Scan."
         case .barcode: return "Point at the barcode, then tap Scan."
         }
     }
 }
  
-// What the camera read, shown in a sheet.
-struct ScanResult: Identifiable {
+// One scanned product waiting to be checked on the Review scan screen.
+struct ReviewDraft: Identifiable {
     let id = UUID()
-    let mode: ScanMode
-    let lines: [String]
+    var name = ""
+    var amount = ""
+    var category = "Other"
+    var expiryDate: Date?
+    var note: String?
+}
+ 
+// A scanned receipt waiting to be checked.
+struct ReceiptDraft: Identifiable {
+    let id = UUID()
+    let items: [ReceiptItem]
 }
  
 struct ScanView: View {
@@ -43,8 +54,14 @@ struct ScanView: View {
     @State private var mode: ScanMode = .receipt
     @State private var cameraStatus = AVCaptureDevice.authorizationStatus(for: .video)
     @State private var scanner = ScannerModel()
-    @State private var result: ScanResult?
+ 
+    @State private var review: ReviewDraft?
+    @State private var receiptReview: ReceiptDraft?
+    @State private var busyMessage: String?
+ 
     @State private var showingNothingFound = false
+    @State private var showingNoDate = false
+    @State private var showingNoItems = false
     @State private var showingAddFood = false
  
     var body: some View {
@@ -74,11 +91,36 @@ struct ScanView: View {
             .onAppear {
                 cameraStatus = AVCaptureDevice.authorizationStatus(for: .video)
             }
-            .sheet(item: $result) { result in
-                ScanResultView(result: result)
-            }
             .sheet(isPresented: $showingAddFood) {
                 AddProductView(ownerID: auth.userID)
+            }
+            // Label and barcode: review one item
+            .sheet(item: $review) { draft in
+                AddProductView(
+                    ownerID: auth.userID,
+                    title: "Review scan",
+                    note: draft.note,
+                    name: draft.name,
+                    expiryDate: draft.expiryDate,
+                    amount: draft.amount,
+                    category: draft.category
+                )
+            }
+            // Receipt: review every item
+            .sheet(item: $receiptReview) { draft in
+                ReceiptReviewView(ownerID: auth.userID, items: draft.items)
+            }
+            .alert("No date found", isPresented: $showingNoDate) {
+                Button("Try again", role: .cancel) {}
+                Button("Add by hand") { showingAddFood = true }
+            } message: {
+                Text("Make sure the use-by date is in view and clear, or add the food by hand.")
+            }
+            .alert("No food found on the receipt", isPresented: $showingNoItems) {
+                Button("Try again", role: .cancel) {}
+                Button("Add by hand") { showingAddFood = true }
+            } message: {
+                Text("Lay the receipt flat in good light and fit the item list in view. Very faded receipts may not scan.")
             }
             // "Scan readable?" – No: ask them to try again
             .alert("Nothing found", isPresented: $showingNothingFound) {
@@ -104,6 +146,13 @@ struct ScanView: View {
                     .id(mode)   // a fresh scanner for each mode
                     .clipShape(RoundedRectangle(cornerRadius: 16))
  
+                if let busyMessage {
+                    ProgressView(busyMessage)
+                        .padding()
+                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+                        .frame(maxHeight: .infinity)
+                }
+ 
                 Button {
                     capture()
                 } label: {
@@ -113,6 +162,7 @@ struct ScanView: View {
                         .shadow(radius: 4)
                 }
                 .accessibilityLabel("Scan")
+                .disabled(busyMessage != nil)
                 .padding(.bottom, 24)
             }
             .padding(.horizontal)
@@ -156,10 +206,85 @@ struct ScanView: View {
  
     private func capture() {
         let lines = scanner.readLines(for: mode)
-        if lines.isEmpty {
+        guard !lines.isEmpty else {
             showingNothingFound = true
+            return
+        }
+ 
+        switch mode {
+        case .receipt:
+            Task { await readReceipt(fallbackLines: lines) }
+        case .label:
+            readLabel(lines)
+        case .barcode:
+            if let barcode = lines.first {
+                Task { await lookUp(barcode: barcode) }
+            }
+        }
+    }
+ 
+    // Receipt -> full photo -> Vision -> abbreviation dictionary -> Review scan
+    private func readReceipt(fallbackLines: [String]) async {
+        busyMessage = "Reading receipt…"
+ 
+        var rows: [String] = []
+        if let photo = await scanner.capturePhoto() {
+            rows = await ReceiptReader.readRows(from: photo)
+        }
+        if rows.isEmpty {
+            rows = fallbackLines   // use what the live camera could see
+        }
+ 
+        let items = ReceiptParser.items(from: rows)
+        busyMessage = nil
+ 
+        if items.isEmpty {
+            showingNoItems = true
         } else {
-            result = ScanResult(mode: mode, lines: lines)
+            receiptReview = ReceiptDraft(items: items)
+        }
+    }
+ 
+    // Label -> find the date -> Review scan
+    private func readLabel(_ lines: [String]) {
+        guard let found = LabelDateReader.findDate(in: lines) else {
+            showingNoDate = true
+            return
+        }
+ 
+        let dateText = found.date.formatted(.dateTime.day().month(.wide).year())
+        let note: String
+        switch found.kind {
+        case .useBy:
+            note = "Found a use-by date: \(dateText). Type the product name and check the details."
+        case .bestBefore:
+            note = "Found a best-before date: \(dateText). Best before is about quality, so food may still be fine after it, unlike use-by, which is about safety. Type the product name and check the details."
+        case .unlabelled:
+            note = "Found the date \(dateText), but couldn't tell if it's use-by or best-before. Check the pack and type the product name."
+        }
+ 
+        review = ReviewDraft(expiryDate: found.date, note: note)
+    }
+ 
+    // Barcode -> Open Food Facts -> Review scan
+    private func lookUp(barcode: String) async {
+        busyMessage = "Looking up product…"
+        let product = await OpenFoodFacts.lookUp(barcode: barcode)
+        busyMessage = nil
+ 
+        if let product {
+            let estimate = ShelfLife.estimate(forName: product.name, category: product.category)
+            review = ReviewDraft(
+                name: product.name,
+                amount: product.quantity,
+                category: product.category,
+                expiryDate: estimate.date,
+                note: "Found on Open Food Facts. Barcodes don't include use-by dates, so the date is an estimate from \(estimate.source). Check the pack and change it if needed."
+            )
+        } else {
+            review = ReviewDraft(
+                note: "We couldn't find barcode \(barcode) on Open Food Facts, or there's no internet connection. Add the details yourself."
+            )
         }
     }
 }
@@ -170,6 +295,7 @@ struct ScanView: View {
 @Observable
 final class ScannerModel {
     var items: [RecognizedItem] = []
+    @ObservationIgnored weak var scanner: DataScannerViewController?
  
     // Text top to bottom (receipt, label) or barcode numbers.
     func readLines(for mode: ScanMode) -> [String] {
@@ -191,6 +317,12 @@ final class ScannerModel {
             }
         }
     }
+ 
+    // A full-resolution photo for reading whole receipts.
+    func capturePhoto() async -> UIImage? {
+        guard let scanner else { return nil }
+        return try? await scanner.capturePhoto()
+    }
 }
  
 // MARK: - VisionKit's live scanner, wrapped for SwiftUI
@@ -211,6 +343,7 @@ struct LiveScanner: UIViewControllerRepresentable {
             isHighlightingEnabled: true
         )
         scanner.delegate = context.coordinator
+        model.scanner = scanner
         return scanner
     }
  
@@ -245,28 +378,6 @@ struct LiveScanner: UIViewControllerRepresentable {
  
         func dataScanner(_ dataScanner: DataScannerViewController, didRemove removedItems: [RecognizedItem], allItems: [RecognizedItem]) {
             model.items = allItems
-        }
-    }
-}
- 
-// MARK: - Temporary result screen (replaced by Review scan in Steps 2–4)
- 
-struct ScanResultView: View {
-    let result: ScanResult
-    @Environment(\.dismiss) private var dismiss
- 
-    var body: some View {
-        NavigationStack {
-            List(result.lines, id: \.self) { line in
-                Text(line)
-            }
-            .navigationTitle("\(result.mode.rawValue) scan")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
-                }
-            }
         }
     }
 }

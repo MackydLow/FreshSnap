@@ -8,24 +8,52 @@
 import SwiftUI
 import SwiftData
  
-// FreshSnap – Week 5, Step 7
+// FreshSnap – Week 5, Step 7 (Week 6: also the Review scan screen)
 // Manual add: product, use-by date, amount, then Add (submit).
  
 struct AddProductView: View {
     let ownerID: String
+    let title: String
+    let note: String?
  
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
  
-    @State private var name = ""
-    @State private var expiryDate = Calendar.current.date(byAdding: .day, value: 3, to: .now) ?? .now
-    @State private var amount = ""
+    @State private var name: String
+    @State private var expiryDate: Date
+    @State private var amount: String
     @State private var priceText = ""
-    @State private var category = "Other"
+    @State private var category: String
+ 
+    // Empty for manual add; pre-filled when opened as the Review scan screen.
+    init(ownerID: String,
+         title: String = "Add food",
+         note: String? = nil,
+         name: String = "",
+         expiryDate: Date? = nil,
+         amount: String = "",
+         category: String = "Other") {
+        self.ownerID = ownerID
+        self.title = title
+        self.note = note
+        _name = State(initialValue: name)
+        _expiryDate = State(initialValue: expiryDate
+            ?? Calendar.current.date(byAdding: .day, value: 3, to: .now) ?? .now)
+        _amount = State(initialValue: amount)
+        _category = State(initialValue: category)
+    }
  
     var body: some View {
         NavigationStack {
             Form {
+                if let note {
+                    Section {
+                        Text(note)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+ 
                 Section {
                     TextField("Product name", text: $name)
                     DatePicker("Use-by date", selection: $expiryDate, displayedComponents: .date)
@@ -42,7 +70,7 @@ struct AddProductView: View {
                     Text("The price is used to work out how much money you've saved.")
                 }
             }
-            .navigationTitle("Add food")
+            .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

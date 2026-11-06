@@ -50,22 +50,7 @@ extension View {
     }
 }
  
-// MARK: - Placeholder screen (replaced in Week 6, Step 5)
-// FridgeView is in FridgeView.swift and ScanView is in ScanView.swift
- 
-struct RecipesView: View {
-    var body: some View {
-        NavigationStack {
-            ContentUnavailableView(
-                "No recipes yet",
-                systemImage: "fork.knife",
-                description: Text("Add food to your fridge to see meal ideas.")
-            )
-            .navigationTitle("Recipes")
-            .profileButton()
-        }
-    }
-}
+// FridgeView, RecipesView and ScanView each live in their own files.
  
 // Profile slides in on top of the current tab, with a back button.
 struct ProfileView: View {
