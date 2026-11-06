@@ -1,17 +1,72 @@
 import SwiftUI
 import SwiftData
  
-// FreshSnap – Week 5, Steps 8 to 10
-// The virtual fridge: food you still have, soonest use-by date first.
+// FreshSnap – Week 5, Steps 8 to 10 (Week 7, Steps 1 and 2)
+// The virtual fridge: food you still have, with "Filter and ordering"
+// (flow: ordering or filtering? -> order by name or use-by date / filter -> view products with changes).
+ 
+enum FridgeOrder: String, CaseIterable, Identifiable {
+    case useBy = "Use-by date"
+    case name = "Name (A–Z)"
+    case recentlyAdded = "Recently added"
+ 
+    var id: Self { self }
+}
+ 
+enum FridgeFilter: Hashable {
+    case all
+    case expiringSoon
+    case category(String)
+ 
+    var title: String {
+        switch self {
+        case .all: return "All food"
+        case .expiringSoon: return "Expiring soon"
+        case .category(let name): return name
+        }
+    }
+}
  
 struct FridgeView: View {
     @Environment(AuthManager.self) private var auth
     @Query(sort: \FoodItem.expiryDate) private var allFood: [FoodItem]
+ 
+    @AppStorage("fridgeOrder") private var order: FridgeOrder = .useBy   // remembered between visits
+    @State private var filter: FridgeFilter = .all
     @State private var showingAddFood = false
  
     // Only this user's food that is still in the fridge.
     private var fridge: [FoodItem] {
         allFood.filter { $0.ownerID == auth.userID && $0.status == .inFridge }
+    }
+ 
+    // The fridge after the chosen filter and order
+    private var visibleFood: [FoodItem] {
+        let filtered: [FoodItem]
+        switch filter {
+        case .all: filtered = fridge
+        case .expiringSoon: filtered = fridge.filter { $0.daysLeft <= 2 }
+        case .category(let name): filtered = fridge.filter { $0.category == name }
+        }
+ 
+        switch order {
+        case .useBy:
+            return filtered.sorted { $0.expiryDate < $1.expiryDate }
+        case .name:
+            return filtered.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        case .recentlyAdded:
+            return filtered.sorted { $0.addedDate > $1.addedDate }
+        }
+    }
+ 
+    // Categories that actually have food in them
+    private var categoriesInFridge: [String] {
+        FoodCategory.all.filter { category in fridge.contains { $0.category == category } }
+    }
+ 
+    // Changes whenever any food's name or date changes
+    private var reminderKey: String {
+        fridge.map { "\($0.name)|\($0.expiryDate.timeIntervalSince1970)" }.joined(separator: ",")
     }
  
     private let columns = [
@@ -33,27 +88,36 @@ struct FridgeView: View {
                     }
                 } else {
                     ScrollView {
-                        HStack {
-                            Spacer()
-                            Button {
-                                showingAddFood = true
-                            } label: {
-                                Label("Add food", systemImage: "plus")
+                        VStack(spacing: 12) {
+                            toolbarRow
+                            if filter != .all {
+                                filterBar
                             }
-                        }
-                        .padding(.horizontal)
  
-                        LazyVGrid(columns: columns, spacing: 12) {
-                            ForEach(fridge) { food in
-                                NavigationLink {
-                                    FoodDetailView(food: food)
-                                } label: {
-                                    FoodCard(food: food)
+                            if visibleFood.isEmpty {
+                                ContentUnavailableView {
+                                    Label("Nothing matches", systemImage: "line.3.horizontal.decrease.circle")
+                                } description: {
+                                    Text("No food in your fridge is \(filter.title.lowercased()).")
+                                } actions: {
+                                    Button("Show all food") { filter = .all }
                                 }
-                                .buttonStyle(.plain)
+                            } else {
+                                LazyVGrid(columns: columns, spacing: 12) {
+                                    ForEach(visibleFood) { food in
+                                        NavigationLink {
+                                            FoodDetailView(food: food)
+                                        } label: {
+                                            FoodCard(food: food)
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                }
+                                .padding(.horizontal)
+                                // Cards slide into place when the order, filter or fridge changes
+                                .animation(.snappy, value: visibleFood.map(\.persistentModelID))
                             }
                         }
-                        .padding(.horizontal)
                     }
                 }
             }
@@ -62,14 +126,80 @@ struct FridgeView: View {
             .sheet(isPresented: $showingAddFood) {
                 AddProductView(ownerID: auth.userID)
             }
+            .onChange(of: categoriesInFridge) { _, categories in
+                // If the filtered category is now empty, go back to all food
+                if case .category(let name) = filter, !categories.contains(name) {
+                    filter = .all
+                }
+            }
             .task {
                 await ReminderManager.requestPermission()
             }
-            // Reschedule reminders when food is added, used or thrown away
-            .task(id: fridge.count) {
+            // Reschedule reminders when food is added, edited, used or thrown away
+            .task(id: reminderKey) {
                 ReminderManager.scheduleReminders(for: fridge)
             }
         }
+    }
+ 
+    // MARK: "Filter and ordering" on the left, add on the right (as in the wireframe)
+ 
+    private var toolbarRow: some View {
+        HStack {
+            Menu {
+                Section("Order by") {
+                    Picker("Order by", selection: $order) {
+                        ForEach(FridgeOrder.allCases) { Text($0.rawValue).tag($0) }
+                    }
+                    .pickerStyle(.inline)
+                }
+ 
+                Section("Show") {
+                    Picker("Show", selection: $filter) {
+                        Text(FridgeFilter.all.title).tag(FridgeFilter.all)
+                        Text(FridgeFilter.expiringSoon.title).tag(FridgeFilter.expiringSoon)
+                        ForEach(categoriesInFridge, id: \.self) { category in
+                            Text(category).tag(FridgeFilter.category(category))
+                        }
+                    }
+                    .pickerStyle(.inline)
+                }
+            } label: {
+                Label("Filter and ordering",
+                      systemImage: filter == .all
+                        ? "line.3.horizontal.decrease.circle"
+                        : "line.3.horizontal.decrease.circle.fill")
+            }
+ 
+            Spacer()
+ 
+            Button {
+                showingAddFood = true
+            } label: {
+                Image(systemName: "plus")
+                    .font(.title2)
+            }
+            .accessibilityLabel("Add food")
+        }
+        .padding(.horizontal)
+        .padding(.top, 4)
+    }
+ 
+    // Shows what's being viewed, with a way back to everything
+    private var filterBar: some View {
+        HStack {
+            Text("Showing: \(filter.title) (\(visibleFood.count))")
+                .font(.subheadline)
+            Spacer()
+            Button("Show all") {
+                withAnimation(.snappy) { filter = .all }
+            }
+            .font(.subheadline.weight(.semibold))
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 8)
+        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
+        .padding(.horizontal)
     }
 }
  

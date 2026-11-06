@@ -54,7 +54,7 @@ enum MealDB {
         return meals.compactMap { meal in
             guard let id = meal["idMeal"] as? String,
                   let name = meal["strMeal"] as? String else { return nil }
-            return MealSummary(id: id, name: name, thumbnailURL: url(meal["strMealThumb"]))
+            return MealSummary(id: id, name: name, thumbnailURL: link(from: meal["strMealThumb"]))
         }
     }
  
@@ -81,11 +81,11 @@ enum MealDB {
             name: name,
             category: meal["strCategory"] as? String ?? "",
             area: meal["strArea"] as? String ?? "",
-            imageURL: url(meal["strMealThumb"]),
+            imageURL: link(from: meal["strMealThumb"]),
             ingredients: ingredients,
             steps: steps(from: meal["strInstructions"] as? String ?? ""),
-            youtubeURL: url(meal["strYoutube"]),
-            sourceURL: url(meal["strSource"])
+            youtubeURL: link(from: meal["strYoutube"]),
+            sourceURL: link(from: meal["strSource"])
         )
     }
  
@@ -151,7 +151,8 @@ enum MealDB {
         return (try JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]
     }
  
-    private static func url(_ value: Any?) -> URL? {
+    // Turns a web address from the API into a URL (nil if empty)
+    private static func link(from value: Any?) -> URL? {
         guard let text = value as? String, !text.isEmpty else { return nil }
         return URL(string: text)
     }
