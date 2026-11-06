@@ -16,11 +16,17 @@ struct RootView: View {
     @Environment(AuthManager.self) private var auth
  
     var body: some View {
-        if auth.isLoggedIn {
-            ContentView()
-        } else {
-            WelcomeView()
+        Group {
+            if !auth.isLoggedIn {
+                WelcomeView()
+            } else if auth.justSignedUp {
+                OnboardingView()        // new users only (from the flow diagram)
+            } else {
+                ContentView()
+            }
         }
+        .animation(.default, value: auth.isLoggedIn)
+        .animation(.default, value: auth.justSignedUp)
     }
 }
  
@@ -252,4 +258,3 @@ struct ForgotPasswordView: View {
         isWorking = false
     }
 }
- 

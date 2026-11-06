@@ -1,7 +1,7 @@
 import SwiftUI
 import SwiftData
  
-// FreshSnap – Week 5, Steps 8 to 10 (Week 7, Steps 1 and 2)
+// FreshSnap – Week 5, Steps 8 to 10 (Week 7, Steps 1, 2 and 5)
 // The virtual fridge: food you still have, with "Filter and ordering"
 // (flow: ordering or filtering? -> order by name or use-by date / filter -> view products with changes).
  
@@ -135,11 +135,22 @@ struct FridgeView: View {
             .task {
                 await ReminderManager.requestPermission()
             }
+            // Opened from a reminder: show food that's expiring soon
+            .onAppear(perform: showExpiringSoonIfAsked)
+            .onChange(of: AppRouter.shared.showExpiringSoon) { _, asked in
+                if asked { showExpiringSoonIfAsked() }
+            }
             // Reschedule reminders when food is added, edited, used or thrown away
             .task(id: reminderKey) {
                 ReminderManager.scheduleReminders(for: fridge)
             }
         }
+    }
+ 
+    private func showExpiringSoonIfAsked() {
+        guard AppRouter.shared.showExpiringSoon else { return }
+        withAnimation(.snappy) { filter = .expiringSoon }
+        AppRouter.shared.showExpiringSoon = false
     }
  
     // MARK: "Filter and ordering" on the left, add on the right (as in the wireframe)

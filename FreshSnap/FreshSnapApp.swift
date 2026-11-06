@@ -8,6 +8,7 @@
 import SwiftUI
 import SwiftData
 import FirebaseCore
+import UserNotifications
  
 @main
 struct FreshSnapApp: App {
@@ -17,6 +18,8 @@ struct FreshSnapApp: App {
         // Firebase must start before AuthManager uses it.
         FirebaseApp.configure()
         _auth = State(initialValue: AuthManager())
+        // Set at launch so tapping a reminder works even when the app was closed
+        UNUserNotificationCenter.current().delegate = NotificationDelegate.shared
     }
  
     var sharedModelContainer: ModelContainer = {

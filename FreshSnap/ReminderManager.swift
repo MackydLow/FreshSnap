@@ -7,8 +7,9 @@
 
 import Foundation
 import UserNotifications
+import Observation
  
-// FreshSnap – Week 5, Step 10 (Week 7: time and warning period from Settings)
+// FreshSnap – Week 5, Step 10 (Week 7: Settings, and tapping opens expiring food)
 // One daily summary of food that needs using, instead of one alert per item.
 // Scheduled on the phone (local notifications), so it works offline.
  
@@ -92,12 +93,40 @@ enum ReminderManager {
     }
 }
  
-// Lets reminders show as a banner even while FreshSnap is open.
+// The three tabs, so the app can switch tab by itself
+enum AppTab: Hashable {
+    case fridge, recipes, scan
+}
+ 
+// Lets parts of the app ask for a tab or view to open (e.g. from a reminder).
+@MainActor
+@Observable
+final class AppRouter {
+    static let shared = AppRouter()
+ 
+    var selectedTab: AppTab = .fridge
+    var showExpiringSoon = false
+ 
+    func openExpiringSoon() {
+        selectedTab = .fridge
+        showExpiringSoon = true
+    }
+}
+ 
 final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
     static let shared = NotificationDelegate()
  
+    // Shows reminders as a banner even while FreshSnap is open.
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter,
                                             willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
         [.banner, .sound]
+    }
+ 
+    // Tapping a reminder opens the Fridge, filtered to food expiring soon.
+    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                            didReceive response: UNNotificationResponse) async {
+        await MainActor.run {
+            AppRouter.shared.openExpiringSoon()
+        }
     }
 }

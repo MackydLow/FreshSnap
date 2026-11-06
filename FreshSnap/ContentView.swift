@@ -14,15 +14,22 @@ import SwiftData
  
 struct ContentView: View {
     var body: some View {
-        TabView {
+        // The selected tab can be changed by the app, e.g. when a reminder is tapped
+        TabView(selection: Binding(
+            get: { AppRouter.shared.selectedTab },
+            set: { AppRouter.shared.selectedTab = $0 }
+        )) {
             FridgeView()
                 .tabItem { Label("Fridge", systemImage: "refrigerator") }
+                .tag(AppTab.fridge)
  
             RecipesView()
                 .tabItem { Label("Recipes", systemImage: "fork.knife") }
+                .tag(AppTab.recipes)
  
             ScanView()
                 .tabItem { Label("Scan", systemImage: "camera.viewfinder") }
+                .tag(AppTab.scan)
         }
     }
 }
@@ -86,6 +93,9 @@ struct ProfileView: View {
             Section("Your details") {
                 LabeledContent("Name", value: auth.name)
                 LabeledContent("Email", value: auth.email)
+                NavigationLink("Change name or email") {
+                    EditDetailsView()
+                }
             }
  
             Section {
@@ -102,6 +112,14 @@ struct ProfileView: View {
                 Button("Log out", role: .destructive) {
                     ReminderManager.cancelAll()
                     auth.logOut()
+                }
+            }
+ 
+            Section {
+                NavigationLink {
+                    DeleteAccountView()
+                } label: {
+                    Text("Delete account").foregroundStyle(.red)
                 }
             }
         }
