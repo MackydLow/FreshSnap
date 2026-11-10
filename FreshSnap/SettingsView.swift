@@ -123,11 +123,11 @@ struct SettingsView: View {
  
             // MARK: Scanning
             Section {
-                Toggle("Improve receipt names with AI", isOn: $useAI)
+                Toggle("Use AI features", isOn: $useAI)
             } header: {
-                Text("Scanning")
+                Text("AI")
             } footer: {
-                Text("Uses Google's Gemini to tidy up names the abbreviation dictionary doesn't know. Only the item text is sent, never the photo. Needs internet.")
+                Text("Uses Google's Gemini to tidy up receipt names the dictionary doesn't know, and to estimate nutrition for recipes. Only text is sent, never photos. Needs internet.")
             }
  
             // MARK: Privacy
@@ -140,7 +140,7 @@ struct SettingsView: View {
                       systemImage: "person.badge.key")
                 Label("Barcodes and food names are sent to Open Food Facts and TheMealDB to look up products and recipes.",
                       systemImage: "network")
-                Label("If AI is on, the text of receipt items is sent to Google's Gemini through Firebase to improve names.",
+                Label("If AI is on, receipt item text and recipe ingredients are sent to Google's Gemini through Firebase.",
                       systemImage: "sparkles")
             } header: {
                 Text("Privacy")

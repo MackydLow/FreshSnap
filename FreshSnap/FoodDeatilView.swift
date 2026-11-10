@@ -8,7 +8,7 @@
 import SwiftUI
 import SwiftData
  
-// FreshSnap – Week 5, Step 9 (Week 7, Step 1: Edit, Delete and confirm Thrown away)
+// FreshSnap – Week 5, Step 9 (Week 7: Edit, Delete, confirm Thrown away; Week 8: nutrition)
 // The Food item screen: details, then "Product used or thrown away?"
 // Used adds the price to money saved; both take the food out of the fridge.
 // Delete is for mistakes, and doesn't count as waste.
@@ -45,6 +45,23 @@ struct FoodDetailView: View {
                 LabeledContent("Price paid",
                                value: food.price > 0 ? food.price.formatted(.currency(code: "GBP")) : "Not added")
                 LabeledContent("Added", value: food.addedDate.formatted(date: .abbreviated, time: .omitted))
+            }
+ 
+            // Nutrition (Week 8)
+            if let nutrition = food.nutrition {
+                Section {
+                    NutritionRows(nutrition: nutrition)
+                } header: {
+                    Text("Nutrition per 100 g")
+                } footer: {
+                    Text("From Open Food Facts. Ratings use the UK's front-of-pack guidance for food.")
+                }
+            } else {
+                Section("Nutrition") {
+                    Text("Nutrition is shown for food added by scanning its barcode.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
             }
  
             Section {
@@ -180,5 +197,75 @@ struct EditFoodView: View {
         food.price = Double(cleanedPrice) ?? 0
         food.category = category
         dismiss()
+    }
+}
+ 
+// MARK: - Nutrition rows (Week 8, Extra 2)
+ 
+// UK front-of-pack traffic lights for food, per 100 g
+enum TrafficLight {
+    case low, medium, high
+ 
+    var label: String {
+        switch self {
+        case .low: return "Low"
+        case .medium: return "Medium"
+        case .high: return "High"
+        }
+    }
+ 
+    var colour: Color {
+        switch self {
+        case .low: return .green
+        case .medium: return .orange
+        case .high: return .red
+        }
+    }
+ 
+    // Low at or below the first number, high above the second
+    static func rating(_ grams: Double, low: Double, high: Double) -> TrafficLight {
+        if grams <= low { return .low }
+        if grams > high { return .high }
+        return .medium
+    }
+}
+ 
+// The values in the same order as a UK food label
+struct NutritionRows: View {
+    let nutrition: Nutrition
+ 
+    var body: some View {
+        if let calories = nutrition.calories {
+            LabeledContent("Energy", value: "\(Int(calories.rounded())) kcal")
+        }
+        row("Fat", nutrition.fat, rating: { .rating($0, low: 3, high: 17.5) })
+        row("of which saturates", nutrition.saturatedFat, rating: { .rating($0, low: 1.5, high: 5) })
+        row("Carbohydrate", nutrition.carbs)
+        row("of which sugars", nutrition.sugar, rating: { .rating($0, low: 5, high: 22.5) })
+        row("Fibre", nutrition.fibre)
+        row("Protein", nutrition.protein)
+        row("Salt", nutrition.salt, rating: { .rating($0, low: 0.3, high: 1.5) })
+    }
+ 
+    @ViewBuilder
+    private func row(_ name: String, _ grams: Double?,
+                     rating: ((Double) -> TrafficLight)? = nil) -> some View {
+        if let grams {
+            HStack {
+                Text(name)
+                Spacer()
+                Text("\(grams.formatted(.number.precision(.fractionLength(0...1)))) g")
+                    .foregroundStyle(.secondary)
+                if let light = rating?(grams) {
+                    // Shown in words as well as colour, for accessibility
+                    Text(light.label)
+                        .font(.caption.bold())
+                        .foregroundStyle(light.colour)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 2)
+                        .background(light.colour.opacity(0.15), in: Capsule())
+                }
+            }
+        }
     }
 }

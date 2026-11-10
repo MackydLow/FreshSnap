@@ -8,7 +8,7 @@
 import SwiftUI
 import SwiftData
  
-// FreshSnap – Week 6, Step 6 (Week 7, Step 6: "I cooked this")
+// FreshSnap – Week 6, Step 6 (Week 7: "I cooked this"; Week 8: nutrition estimate)
 // View recipe: photo, ingredients (marking what's in your fridge), method and video.
 // "I cooked this" marks the fridge food used in the recipe as Used.
  
@@ -118,6 +118,9 @@ struct RecipeDetailView: View {
                     .padding(.vertical, 2)
                 }
             }
+ 
+            // Estimated nutrition (Week 8, Extra 3)
+            RecipeNutritionSection(meal: detail)
  
             Section {
                 Button {

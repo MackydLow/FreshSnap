@@ -8,7 +8,7 @@
 import Foundation
 import SwiftData
  
-// FreshSnap – Week 5, Step 6
+// FreshSnap – Week 5, Step 6 (Week 8: nutrition)
 // One piece of food in the virtual fridge, saved on the phone with SwiftData.
 // Replaces Xcode's template Item.swift.
  
@@ -16,6 +16,22 @@ enum FoodStatus: String, Codable {
     case inFridge
     case used
     case thrownAway
+}
+ 
+// Nutrition per 100 g, from Open Food Facts (Week 8, Extra 2)
+struct Nutrition: Equatable {
+    var calories: Double?
+    var fat: Double?
+    var saturatedFat: Double?
+    var carbs: Double?
+    var sugar: Double?
+    var fibre: Double?
+    var protein: Double?
+    var salt: Double?
+ 
+    var isEmpty: Bool {
+        [calories, fat, saturatedFat, carbs, sugar, fibre, protein, salt].allSatisfy { $0 == nil }
+    }
 }
  
 enum FoodCategory {
@@ -32,6 +48,35 @@ final class FoodItem {
     var category: String
     var statusRaw: String    // stored as text; use `status` below in code
     var addedDate: Date
+ 
+    // Nutrition per 100 g (Week 8). Optional, so existing food updates automatically.
+    var calories: Double? = nil
+    var fat: Double? = nil
+    var saturatedFat: Double? = nil
+    var carbs: Double? = nil
+    var sugar: Double? = nil
+    var fibre: Double? = nil
+    var protein: Double? = nil
+    var salt: Double? = nil
+ 
+    // All the nutrition values together, or nil if there are none
+    var nutrition: Nutrition? {
+        get {
+            let values = Nutrition(calories: calories, fat: fat, saturatedFat: saturatedFat,
+                                   carbs: carbs, sugar: sugar, fibre: fibre, protein: protein, salt: salt)
+            return values.isEmpty ? nil : values
+        }
+        set {
+            calories = newValue?.calories
+            fat = newValue?.fat
+            saturatedFat = newValue?.saturatedFat
+            carbs = newValue?.carbs
+            sugar = newValue?.sugar
+            fibre = newValue?.fibre
+            protein = newValue?.protein
+            salt = newValue?.salt
+        }
+    }
  
     var status: FoodStatus {
         get { FoodStatus(rawValue: statusRaw) ?? .inFridge }

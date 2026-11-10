@@ -15,6 +15,7 @@ struct AddProductView: View {
     let ownerID: String
     let title: String
     let note: String?
+    let nutrition: Nutrition?
  
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
@@ -32,10 +33,12 @@ struct AddProductView: View {
          name: String = "",
          expiryDate: Date? = nil,
          amount: String = "",
-         category: String = "Other") {
+         category: String = "Other",
+         nutrition: Nutrition? = nil) {
         self.ownerID = ownerID
         self.title = title
         self.note = note
+        self.nutrition = nutrition
         _name = State(initialValue: name)
         _expiryDate = State(initialValue: expiryDate
             ?? Calendar.current.date(byAdding: .day, value: 3, to: .now) ?? .now)
@@ -69,6 +72,16 @@ struct AddProductView: View {
                 } footer: {
                     Text("The price is used to work out how much money you've saved.")
                 }
+ 
+                if let nutrition {
+                    Section {
+                        NutritionRows(nutrition: nutrition)
+                    } header: {
+                        Text("Nutrition per 100 g")
+                    } footer: {
+                        Text("From Open Food Facts. Saved with this food.")
+                    }
+                }
             }
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
@@ -98,6 +111,7 @@ struct AddProductView: View {
             price: Double(cleanedPrice) ?? 0,
             category: category
         )
+        food.nutrition = nutrition
         modelContext.insert(food)
         dismiss()
     }

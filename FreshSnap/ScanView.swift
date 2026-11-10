@@ -39,6 +39,7 @@ struct ReviewDraft: Identifiable {
     var category = "Other"
     var expiryDate: Date?
     var note: String?
+    var nutrition: Nutrition?
 }
  
 // A scanned receipt waiting to be checked.
@@ -104,7 +105,8 @@ struct ScanView: View {
                     name: draft.name,
                     expiryDate: draft.expiryDate,
                     amount: draft.amount,
-                    category: draft.category
+                    category: draft.category,
+                    nutrition: draft.nutrition
                 )
             }
             // Receipt: review every item
@@ -289,7 +291,8 @@ struct ScanView: View {
                 amount: product.quantity,
                 category: product.category,
                 expiryDate: estimate.date,
-                note: "Found on Open Food Facts. Barcodes don't include use-by dates, so the date is an estimate from \(estimate.source). Check the pack and change it if needed."
+                note: "Found on Open Food Facts. Barcodes don't include use-by dates, so the date is an estimate from \(estimate.source). Check the pack and change it if needed.",
+                nutrition: product.nutrition
             )
         } else {
             review = ReviewDraft(
