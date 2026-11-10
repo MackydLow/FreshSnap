@@ -8,6 +8,7 @@
 import SwiftUI
 import SwiftData
 import FirebaseCore
+import FirebaseAppCheck
 import UserNotifications
  
 @main
@@ -15,6 +16,12 @@ struct FreshSnapApp: App {
     @State private var auth: AuthManager
  
     init() {
+        // App Check protects the AI service. While testing from Xcode, the debug provider
+        // prints a token in the console that's registered in the Firebase console.
+        #if DEBUG
+        AppCheck.setAppCheckProviderFactory(AppCheckDebugProviderFactory())
+        #endif
+ 
         // Firebase must start before AuthManager uses it.
         FirebaseApp.configure()
         _auth = State(initialValue: AuthManager())

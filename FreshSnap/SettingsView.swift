@@ -9,7 +9,7 @@ import SwiftUI
 import SwiftData
 import UserNotifications
  
-// FreshSnap – Week 7, Step 3
+// FreshSnap – Week 7, Step 3 (Week 8: AI switch)
 // Settings (app map: Profile -> Settings -> Reminders, Diet, Privacy).
 // Choices are saved on the phone and remembered between launches.
  
@@ -22,6 +22,7 @@ enum AppSettings {
     static let veganKey = "dietVegan"
     static let nutFreeKey = "dietNutFree"
     static let dairyFreeKey = "dietDairyFree"
+    static let useAIKey = "useAI"
  
     static var reminderHour: Int {
         UserDefaults.standard.object(forKey: reminderHourKey) as? Int ?? 9
@@ -29,6 +30,11 @@ enum AppSettings {
  
     static var reminderMinute: Int {
         UserDefaults.standard.object(forKey: reminderMinuteKey) as? Int ?? 0
+    }
+ 
+    // AI fallback for receipt names (on unless switched off)
+    static var useAI: Bool {
+        UserDefaults.standard.object(forKey: useAIKey) as? Bool ?? true
     }
  
     // Warn about food with this many days or fewer left (1 = the day before)
@@ -50,6 +56,7 @@ struct SettingsView: View {
     @AppStorage(AppSettings.veganKey) private var vegan = false
     @AppStorage(AppSettings.nutFreeKey) private var nutFree = false
     @AppStorage(AppSettings.dairyFreeKey) private var dairyFree = false
+    @AppStorage(AppSettings.useAIKey) private var useAI = true
  
     @State private var notificationsAllowed = true
  
@@ -114,6 +121,15 @@ struct SettingsView: View {
                 Text("Recipe ideas will leave out meals that don't suit these needs. Always check ingredients yourself if you have an allergy.")
             }
  
+            // MARK: Scanning
+            Section {
+                Toggle("Improve receipt names with AI", isOn: $useAI)
+            } header: {
+                Text("Scanning")
+            } footer: {
+                Text("Uses Google's Gemini to tidy up names the abbreviation dictionary doesn't know. Only the item text is sent, never the photo. Needs internet.")
+            }
+ 
             // MARK: Privacy
             Section {
                 Label("Receipt photos are read on your phone, then discarded. They're never saved or uploaded.",
@@ -124,6 +140,8 @@ struct SettingsView: View {
                       systemImage: "person.badge.key")
                 Label("Barcodes and food names are sent to Open Food Facts and TheMealDB to look up products and recipes.",
                       systemImage: "network")
+                Label("If AI is on, the text of receipt items is sent to Google's Gemini through Firebase to improve names.",
+                      systemImage: "sparkles")
             } header: {
                 Text("Privacy")
             }

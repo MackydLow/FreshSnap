@@ -223,7 +223,8 @@ enum MealDB {
             .map(singular))
     }
  
-    static func singular(_ word: String) -> String {
+    // nonisolated: a simple text function that is safe to use from anywhere
+    nonisolated static func singular(_ word: String) -> String {
         if word.hasSuffix("oes") { return String(word.dropLast(2)) }
         if word.hasSuffix("ies") { return String(word.dropLast(3)) + "y" }
         if word.hasSuffix("s") && !word.hasSuffix("ss") { return String(word.dropLast()) }

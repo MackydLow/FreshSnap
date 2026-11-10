@@ -153,7 +153,8 @@ enum FoodKeeper {
  
     // MARK: Simplifying words
  
-    private static func words(in text: String) -> [String] {
+    // nonisolated: simple text functions that are safe to use from anywhere
+    nonisolated private static func words(in text: String) -> [String] {
         text.lowercased()
             .split { !$0.isLetter }
             .map(String.init)
@@ -161,7 +162,7 @@ enum FoodKeeper {
     }
  
     // "tomatoes" -> "tomato", "berries" -> "berry", "eggs" -> "egg"
-    private static func stem(_ word: String) -> String {
+    nonisolated private static func stem(_ word: String) -> String {
         if word.hasSuffix("oes") { return String(word.dropLast(2)) }
         if word.hasSuffix("ies") { return String(word.dropLast(3)) + "y" }
         if word.hasSuffix("s") && !word.hasSuffix("ss") { return String(word.dropLast()) }

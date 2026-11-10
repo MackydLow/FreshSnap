@@ -11,7 +11,7 @@ import AVFoundation
  
 // FreshSnap – Week 6, Steps 1 to 5
 // The Scan tab: live camera with Receipt, Label and Barcode modes.
-// Receipt -> Vision + abbreviation dictionary -> Review scan (many items)
+// Receipt -> Vision + abbreviation dictionary (+ AI fallback) -> Review scan (many items)
 // Label   -> use-by date reader                -> Review scan
 // Barcode -> Open Food Facts                   -> Review scan
  
@@ -45,6 +45,7 @@ struct ReviewDraft: Identifiable {
 struct ReceiptDraft: Identifiable {
     let id = UUID()
     let items: [ReceiptItem]
+    var aiFailed = false
 }
  
 struct ScanView: View {
@@ -108,7 +109,7 @@ struct ScanView: View {
             }
             // Receipt: review every item
             .sheet(item: $receiptReview) { draft in
-                ReceiptReviewView(ownerID: auth.userID, items: draft.items)
+                ReceiptReviewView(ownerID: auth.userID, items: draft.items, aiFailed: draft.aiFailed)
             }
             .alert("No date found", isPresented: $showingNoDate) {
                 Button("Try again", role: .cancel) {}
@@ -235,13 +236,22 @@ struct ScanView: View {
             rows = fallbackLines   // use what the live camera could see
         }
  
-        let items = ReceiptParser.items(from: rows)
+        var items = ReceiptParser.items(from: rows)
+        var aiFailed = false
+ 
+        // AI fallback (can be switched off in Settings)
+        if AppSettings.useAI && !items.isEmpty {
+            busyMessage = "Improving names with AI…"
+            let result = await ReceiptAI.improve(items)
+            items = result.items
+            aiFailed = result.outcome == .failed
+        }
         busyMessage = nil
  
         if items.isEmpty {
             showingNoItems = true
         } else {
-            receiptReview = ReceiptDraft(items: items)
+            receiptReview = ReceiptDraft(items: items, aiFailed: aiFailed)
         }
     }
  
@@ -381,4 +391,3 @@ struct LiveScanner: UIViewControllerRepresentable {
         }
     }
 }
- 

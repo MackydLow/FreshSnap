@@ -9,16 +9,23 @@ import Foundation
 import UIKit
 import Vision
  
-// FreshSnap – Week 6, Steps 4 and 5
+// FreshSnap – Week 6, Steps 4 and 5 (Week 8: offer lines, filler words)
 // Turns a photo of a receipt into fridge items:
 // 1. ReceiptReader: Apple's Vision reads every line of text on the photo.
 // 2. ReceiptParser: finds lines with a price, expands abbreviations
 //    ("SS MLK 2L" -> "Semi-skimmed milk", 2 L) and guesses a category.
  
 struct ReceiptItem: Identifiable {
+    enum NameSource {
+        case dictionary
+        case ai
+    }
+ 
     let id = UUID()
     var include = true
     var name: String
+    var nameSource: NameSource = .dictionary
+    var note: String? = nil     // e.g. why AI unticked it
     var amount: String
     var price: Double
     var category: String
@@ -112,6 +119,17 @@ enum ReceiptParser {
         "VOUCHER", "DEPOSIT", "PRICE", "AMOUNT", "GBP", "SALE", "PURCHASE", "APPROVED"
     ]
  
+    // Offer and loyalty-price lines, e.g. "CC 99P", "CC ANY 3 FOR £3", "2 FOR £5"
+    private static let offerPatterns = [
+        #"\bCC\b"#, #"\bANY\s+\d+\s+FOR\b"#, #"\b\d+\s+FOR\s+£?\d"#, #"\b\d+P\b"#,
+        #"MEAL\s+DEAL"#, #"\bOFFER\b"#, #"\bSAVE\b"#
+    ]
+ 
+    // Receipt filler words that aren't part of the product name
+    private static let fillerWords: Set<String> = [
+        "MINIMUM", "MIN", "APPROX", "EACH", "EA", "CLASS", "LOOSE", "PER", "KG"
+    ]
+ 
     // Store names and range names that aren't part of the product name
     private static let storeWords: Set<String> = [
         "TSCO", "TESCO", "SAINSBURYS", "SBURYS", "JS", "ASDA", "ALDI", "LIDL",
@@ -202,7 +220,7 @@ enum ReceiptParser {
         let line = row.uppercased().trimmingCharacters(in: .whitespaces)
  
         // Skip payment, offer and weighed-item lines
-        guard !line.contains("@"), !containsSkipWord(line) else { return nil }
+        guard !line.contains("@"), !containsSkipWord(line), !isOfferLine(line) else { return nil }
  
         // Must end with a price
         let range = NSRange(line.startIndex..., in: line)
@@ -218,7 +236,7 @@ enum ReceiptParser {
         var words: [String] = []
         var amount = ""
         for token in printedName.split(separator: " ").map(String.init) {
-            if storeWords.contains(token) { continue }
+            if storeWords.contains(token) || fillerWords.contains(token) { continue }
             if let size = size(from: token) {
                 amount = size
                 continue
@@ -227,9 +245,11 @@ enum ReceiptParser {
             if token.allSatisfy(\.isNumber) { continue }
             words.append(abbreviations[token] ?? token.lowercased())
         }
-        guard !words.isEmpty else { return nil }
+        // A real product name needs at least 3 letters (stops "CC" becoming an item)
+        let joined = words.joined(separator: " ")
+        guard joined.filter(\.isLetter).count >= 3 else { return nil }
  
-        let name = sentenceCase(words.joined(separator: " "))
+        let name = sentenceCase(joined)
         let category = guessCategory(for: name)
         let estimate = ShelfLife.estimate(forName: name, category: category)
  
@@ -246,6 +266,10 @@ enum ReceiptParser {
  
     private static func containsSkipWord(_ line: String) -> Bool {
         containsAny(skipWords, in: line)
+    }
+ 
+    private static func isOfferLine(_ line: String) -> Bool {
+        offerPatterns.contains { line.range(of: $0, options: .regularExpression) != nil }
     }
  
     // True if any of the words appears as a whole word in the line.

@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0B6CCF7830A36DCC0041AEAE /* FirebaseAILogic in Frameworks */ = {isa = PBXBuildFile; productRef = 0B6CCF7730A36DCC0041AEAE /* FirebaseAILogic */; };
+		0B6CCF7A30A36DDA0041AEAE /* FirebaseAppCheck in Frameworks */ = {isa = PBXBuildFile; productRef = 0B6CCF7930A36DDA0041AEAE /* FirebaseAppCheck */; };
 		0BDD217B30890DEA004AC5F2 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 0BDD217A30890DEA004AC5F2 /* FirebaseAuth */; };
 /* End PBXBuildFile section */
 
@@ -39,6 +41,8 @@
 		0BDAAE723088CF950084DD4A /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			files = (
+				0B6CCF7830A36DCC0041AEAE /* FirebaseAILogic in Frameworks */,
+				0B6CCF7A30A36DDA0041AEAE /* FirebaseAppCheck in Frameworks */,
 				0BDD217B30890DEA004AC5F2 /* FirebaseAuth in Frameworks */,
 			);
 		};
@@ -88,6 +92,8 @@
 			name = FreshSnap;
 			packageProductDependencies = (
 				0BDD217A30890DEA004AC5F2 /* FirebaseAuth */,
+				0B6CCF7730A36DCC0041AEAE /* FirebaseAILogic */,
+				0B6CCF7930A36DDA0041AEAE /* FirebaseAppCheck */,
 			);
 			productName = FreshSnap;
 			productReference = 0BDAAE753088CF950084DD4A /* FreshSnap.app */;
@@ -371,6 +377,16 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		0B6CCF7730A36DCC0041AEAE /* FirebaseAILogic */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 0BDD217830890C88004AC5F2 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAILogic;
+		};
+		0B6CCF7930A36DDA0041AEAE /* FirebaseAppCheck */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 0BDD217830890C88004AC5F2 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAppCheck;
+		};
 		0BDD217A30890DEA004AC5F2 /* FirebaseAuth */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 0BDD217830890C88004AC5F2 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;

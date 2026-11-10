@@ -8,7 +8,7 @@
 import SwiftUI
 import SwiftData
  
-// FreshSnap – Week 6, Steps 4 and 5
+// FreshSnap – Week 6, Steps 4 and 5 (Week 8: AI-suggested names)
 // Review scan for receipts: check every item, fix names and dates,
 // untick anything that isn't food, then add them all at once.
 // (Flow: review the scan -> any changes? -> make the changes -> submit scan)
@@ -16,6 +16,7 @@ import SwiftData
 struct ReceiptReviewView: View {
     let ownerID: String
     @State var items: [ReceiptItem]
+    var aiFailed = false
  
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
@@ -35,6 +36,15 @@ struct ReceiptReviewView: View {
                     Text("Found \(items.count) items. Check the names and use-by dates, untick anything that isn't food, then add them. Dates are estimates, so check the packs.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
+                    if aiFailed {
+                        Label("AI couldn't be reached, so names come from the dictionary only. Check them before adding.",
+                              systemImage: "exclamationmark.triangle")
+                            .font(.subheadline)
+                            .foregroundStyle(.orange)
+                    } else if items.contains(where: { $0.nameSource == .ai }) {
+                        Label("Some names were improved by AI. Check them before adding.", systemImage: "sparkles")
+                            .font(.subheadline)
+                    }
                 }
  
                 ForEach($items) { $item in
@@ -56,6 +66,18 @@ struct ReceiptReviewView: View {
                         Text("On receipt: \(item.receiptText)")
                             .font(.caption)
                             .foregroundStyle(.secondary)
+ 
+                        if item.nameSource == .ai {
+                            Label("Name suggested by AI", systemImage: "sparkles")
+                                .font(.caption)
+                                .foregroundStyle(.tint)
+                        }
+ 
+                        if let note = item.note {
+                            Label(note, systemImage: "info.circle")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
  
                         if item.include {
                             Text("Use-by estimate: \(item.estimateSource)")
