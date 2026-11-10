@@ -91,7 +91,7 @@ struct OnboardingView: View {
             OnboardingPage(
                 systemImage: "leaf",
                 title: "Any dietary needs?",
-                message: "Recipe ideas will leave out meals that don't suit you. You can change this any time in Settings."
+                message: "Recipe ideas will leave out meals that don't suit you. You can change this any time in Preferences."
             ) {
                 VStack(spacing: 0) {
                     Toggle("Vegetarian", isOn: $vegetarian)

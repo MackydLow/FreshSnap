@@ -44,7 +44,13 @@ struct RecipesView: View {
     private let maxDietChecks = 30   // recipes checked behind the scenes per search
  
     private let maxIngredients = 5
-    private let columns = [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
+    @Environment(\.dynamicTypeSize) private var textSize
+ 
+    // Two columns normally; one column at the largest (accessibility) text sizes
+    private var columns: [GridItem] {
+        let count = textSize.isAccessibilitySize ? 1 : 2
+        return Array(repeating: GridItem(.flexible(), spacing: 12), count: count)
+    }
  
     private var fridge: [FoodItem] {
         allFood.filter { $0.ownerID == auth.userID && $0.status == .inFridge }
@@ -110,6 +116,8 @@ struct RecipesView: View {
                         .buttonStyle(.bordered)
                         .tint(isOn ? .accentColor : .gray)
                         .accessibilityAddTraits(isOn ? .isSelected : [])
+                        .accessibilityHint(isOn ? "Removes this food from the recipe search"
+                                                : "Adds this food to the recipe search")
                     }
                 }
                 .padding(.horizontal)
@@ -279,5 +287,8 @@ struct RecipeCard: View {
                 .lineLimit(2)
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
+        // VoiceOver reads the card as one item: "Chicken pasta, Uses: chicken, spinach"
+        .accessibilityElement(children: .combine)
+        .accessibilityHint("Opens the recipe")
     }
 }

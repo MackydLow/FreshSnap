@@ -1,7 +1,7 @@
 import SwiftUI
 import SwiftData
  
-// FreshSnap – Week 5, Steps 8 to 10 (Week 7, Steps 1, 2 and 5)
+// FreshSnap – Week 5, Steps 8 to 10 (Week 7, Steps 1, 2 and 5; Week 8: search, Scan button, accessibility)
 // The virtual fridge: food you still have, with "Filter and ordering"
 // (flow: ordering or filtering? -> order by name or use-by date / filter -> view products with changes).
  
@@ -32,21 +32,29 @@ struct FridgeView: View {
     @Query(sort: \FoodItem.expiryDate) private var allFood: [FoodItem]
  
     @AppStorage("fridgeOrder") private var order: FridgeOrder = .useBy   // remembered between visits
+    @Environment(\.dynamicTypeSize) private var textSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var filter: FridgeFilter = .all
     @State private var showingAddFood = false
+    @State private var searchText = ""
  
     // Only this user's food that is still in the fridge.
     private var fridge: [FoodItem] {
         allFood.filter { $0.ownerID == auth.userID && $0.status == .inFridge }
     }
  
-    // The fridge after the chosen filter and order
+    // The fridge after the search, the chosen filter and order
     private var visibleFood: [FoodItem] {
-        let filtered: [FoodItem]
+        var filtered: [FoodItem]
         switch filter {
         case .all: filtered = fridge
         case .expiringSoon: filtered = fridge.filter { $0.daysLeft <= 2 }
         case .category(let name): filtered = fridge.filter { $0.category == name }
+        }
+ 
+        let search = searchText.trimmingCharacters(in: .whitespaces)
+        if !search.isEmpty {
+            filtered = filtered.filter { $0.name.localizedCaseInsensitiveContains(search) }
         }
  
         switch order {
@@ -69,10 +77,11 @@ struct FridgeView: View {
         fridge.map { "\($0.name)|\($0.expiryDate.timeIntervalSince1970)" }.joined(separator: ",")
     }
  
-    private let columns = [
-        GridItem(.flexible(), spacing: 12),
-        GridItem(.flexible(), spacing: 12)
-    ]
+    // Two columns normally; one column at the largest (accessibility) text sizes
+    private var columns: [GridItem] {
+        let count = textSize.isAccessibilitySize ? 1 : 2
+        return Array(repeating: GridItem(.flexible(), spacing: 12), count: count)
+    }
  
     var body: some View {
         NavigationStack {
@@ -85,6 +94,11 @@ struct FridgeView: View {
                     } actions: {
                         Button("Add food") { showingAddFood = true }
                             .buttonStyle(.borderedProminent)
+                        // Tester feedback: a quick way to the Scan tab
+                        Button("Scan your shopping") {
+                            AppRouter.shared.selectedTab = .scan
+                        }
+                        .buttonStyle(.bordered)
                     }
                 } else {
                     ScrollView {
@@ -95,12 +109,22 @@ struct FridgeView: View {
                             }
  
                             if visibleFood.isEmpty {
-                                ContentUnavailableView {
-                                    Label("Nothing matches", systemImage: "line.3.horizontal.decrease.circle")
-                                } description: {
-                                    Text("No food in your fridge is \(filter.title.lowercased()).")
-                                } actions: {
-                                    Button("Show all food") { filter = .all }
+                                if !searchText.trimmingCharacters(in: .whitespaces).isEmpty {
+                                    ContentUnavailableView {
+                                        Label("No matches", systemImage: "magnifyingglass")
+                                    } description: {
+                                        Text("No food in your fridge matches \"\(searchText)\".")
+                                    } actions: {
+                                        Button("Clear search") { searchText = "" }
+                                    }
+                                } else {
+                                    ContentUnavailableView {
+                                        Label("Nothing matches", systemImage: "line.3.horizontal.decrease.circle")
+                                    } description: {
+                                        Text("No food in your fridge is \(filter.title.lowercased()).")
+                                    } actions: {
+                                        Button("Show all food") { filter = .all }
+                                    }
                                 }
                             } else {
                                 LazyVGrid(columns: columns, spacing: 12) {
@@ -115,13 +139,16 @@ struct FridgeView: View {
                                 }
                                 .padding(.horizontal)
                                 // Cards slide into place when the order, filter or fridge changes
-                                .animation(.snappy, value: visibleFood.map(\.persistentModelID))
+                                // (no movement if the user has turned on Reduce Motion)
+                                .animation(reduceMotion ? nil : .snappy, value: visibleFood.map(\.persistentModelID))
                             }
                         }
                     }
                 }
             }
             .navigationTitle("Fridge")
+            // Tester feedback: search the fridge by name
+            .searchable(text: $searchText, prompt: "Search your fridge")
             .profileButton()
             .sheet(isPresented: $showingAddFood) {
                 AddProductView(ownerID: auth.userID)
@@ -235,5 +262,8 @@ struct FoodCard: View {
         .padding()
         .background(Color(.secondarySystemBackground))
         .clipShape(RoundedRectangle(cornerRadius: 12))
+        // VoiceOver reads the card as one item: "Chicken, Use tomorrow, 2 pack"
+        .accessibilityElement(children: .combine)
+        .accessibilityHint("Opens this food's details")
     }
 }

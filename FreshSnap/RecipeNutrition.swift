@@ -100,7 +100,7 @@ struct RecipeNutritionSection: View {
     var body: some View {
         Section {
             if !useAI {
-                Text("Turn on \"Use AI features\" in Settings to estimate nutrition for recipes.")
+                Text("Turn on \"Use AI features\" in Preferences to estimate nutrition for recipes.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             } else {

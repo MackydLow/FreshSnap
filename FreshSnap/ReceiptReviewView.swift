@@ -57,7 +57,9 @@ struct ReceiptReviewView: View {
                                     .font(.title3)
                             }
                             .buttonStyle(.borderless)
-                            .accessibilityLabel(item.include ? "Included" : "Not included")
+                            // VoiceOver: "Include Semi-skimmed milk, on"
+                            .accessibilityLabel("Include \(item.name)")
+                            .accessibilityValue(item.include ? "On" : "Off")
  
                             TextField("Product name", text: $item.name)
                                 .font(.headline)

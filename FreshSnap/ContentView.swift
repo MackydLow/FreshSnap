@@ -102,7 +102,7 @@ struct ProfileView: View {
                 NavigationLink {
                     SettingsView()
                 } label: {
-                    Label("Settings", systemImage: "gearshape")
+                    Label("Preferences", systemImage: "gearshape")
                 }
             } footer: {
                 Text("Reminder time, diet and privacy.")

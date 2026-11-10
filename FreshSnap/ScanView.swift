@@ -24,9 +24,9 @@ enum ScanMode: String, CaseIterable, Identifiable {
  
     var hint: String {
         switch self {
-        case .receipt: return "Fit the receipt's item list in view, hold steady, then tap Scan."
-        case .label: return "Point at the use-by date, then tap Scan."
-        case .barcode: return "Point at the barcode, then tap Scan."
+        case .receipt: return "Hold your phone about 20–30 cm away so the whole item list fits, keep steady, then tap Scan."
+        case .label: return "Hold your phone about 15 cm from the use-by date, then tap Scan."
+        case .barcode: return "Hold your phone about 15 cm from the barcode, then tap Scan."
         }
     }
 }
@@ -65,6 +65,7 @@ struct ScanView: View {
     @State private var showingNoDate = false
     @State private var showingNoItems = false
     @State private var showingAddFood = false
+    @State private var showingDistanceTip = false
  
     var body: some View {
         NavigationStack {
@@ -148,6 +149,19 @@ struct ScanView: View {
                 LiveScanner(mode: mode, model: scanner)
                     .id(mode)   // a fresh scanner for each mode
                     .clipShape(RoundedRectangle(cornerRadius: 16))
+                    // Tester feedback: people held the phone too close.
+                    // The tip only appears when nothing has been recognised for a while.
+                    .overlay(alignment: .top) {
+                        if showingDistanceTip {
+                            Label("Blurry? Move your phone further away", systemImage: "arrow.up.backward.and.arrow.down.forward")
+                                .font(.footnote.weight(.semibold))
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(.regularMaterial, in: Capsule())
+                                .padding(.top, 12)
+                                .transition(.move(edge: .top).combined(with: .opacity))
+                        }
+                    }
  
                 if let busyMessage {
                     ProgressView(busyMessage)
@@ -164,7 +178,8 @@ struct ScanView: View {
                         .foregroundStyle(.white)
                         .shadow(radius: 4)
                 }
-                .accessibilityLabel("Scan")
+                .accessibilityLabel("Scan \(mode.rawValue.lowercased())")
+                .accessibilityHint(mode.hint)
                 .disabled(busyMessage != nil)
                 .padding(.bottom, 24)
             }
@@ -177,6 +192,27 @@ struct ScanView: View {
                 .padding(.horizontal)
                 .padding(.bottom, 8)
         }
+        // If the camera sees nothing for 4 seconds, show the tip for 4 seconds,
+        // then wait at least 6 seconds before it can appear again.
+        .task(id: mode) {
+            showingDistanceTip = false
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(4))
+                guard scanner.items.isEmpty else { continue }
+ 
+                withAnimation { showingDistanceTip = true }
+                try? await Task.sleep(for: .seconds(4))
+                withAnimation { showingDistanceTip = false }
+ 
+                try? await Task.sleep(for: .seconds(6))   // don't nag straight away
+            }
+        }
+        // Hide it as soon as something is recognised
+        .onChange(of: scanner.items.isEmpty) { _, isEmpty in
+            if !isEmpty {
+                withAnimation { showingDistanceTip = false }
+            }
+        }
     }
  
     // MARK: Camera refused ("Camera off" in the app map)
@@ -185,7 +221,7 @@ struct ScanView: View {
         ContentUnavailableView {
             Label("Camera is off", systemImage: "camera.slash")
         } description: {
-            Text("FreshSnap needs the camera to scan receipts, use-by dates and barcodes. Turn it on in Settings, or add food by hand.")
+            Text("FreshSnap needs the camera to scan receipts, use-by dates and barcodes. Turn it on in your iPhone's Settings, or add food by hand.")
         } actions: {
             Button("Open Settings") {
                 if let url = URL(string: UIApplication.openSettingsURLString) {
@@ -211,6 +247,12 @@ struct ScanView: View {
         let lines = scanner.readLines(for: mode)
         guard !lines.isEmpty else {
             showingNothingFound = true
+            // Show the tip briefly after a failed scan
+            withAnimation { showingDistanceTip = true }
+            Task {
+                try? await Task.sleep(for: .seconds(4))
+                withAnimation { showingDistanceTip = false }
+            }
             return
         }
  
@@ -241,7 +283,7 @@ struct ScanView: View {
         var items = ReceiptParser.items(from: rows)
         var aiFailed = false
  
-        // AI fallback (can be switched off in Settings)
+        // AI fallback (can be switched off in Preferences)
         if AppSettings.useAI && !items.isEmpty {
             busyMessage = "Improving names with AI…"
             let result = await ReceiptAI.improve(items)

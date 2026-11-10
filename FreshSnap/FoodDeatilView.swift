@@ -266,6 +266,8 @@ struct NutritionRows: View {
                         .background(light.colour.opacity(0.15), in: Capsule())
                 }
             }
+            // VoiceOver reads the row as one line: "of which sugars, 82 g, High"
+            .accessibilityElement(children: .combine)
         }
     }
 }

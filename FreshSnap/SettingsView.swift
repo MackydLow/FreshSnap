@@ -10,7 +10,8 @@ import SwiftData
 import UserNotifications
  
 // FreshSnap – Week 7, Step 3 (Week 8: AI switch)
-// Settings (app map: Profile -> Settings -> Reminders, Diet, Privacy).
+// Preferences (app map: Profile -> Settings -> Reminders, Diet, Privacy).
+// Renamed from "Settings" to "Preferences" after user testing in Week 8.
 // Choices are saved on the phone and remembered between launches.
  
 // The saved settings, readable from anywhere in the app.
@@ -147,7 +148,7 @@ struct SettingsView: View {
             }
             .font(.subheadline)
         }
-        .navigationTitle("Settings")
+        .navigationTitle("Preferences")
         .task {
             await checkNotifications()
         }
