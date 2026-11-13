@@ -18,13 +18,13 @@ struct MealSummary: Identifiable, Hashable {
     let thumbnailURL: URL?
 }
  
-struct MealIngredient: Identifiable {
-    let id = UUID()
+struct MealIngredient: Identifiable, Codable {
+    var id = UUID()
     let name: String
     let measure: String
 }
  
-struct MealDetail {
+struct MealDetail: Codable {
     let id: String
     let name: String
     let category: String
@@ -94,6 +94,15 @@ enum MealDB {
     // The full recipe (lookup.php), loaded when the user opens it.
     static func meal(id: String) async throws -> MealDetail? {
         if let cached = detailCache[id] { return cached }
+ 
+        // Saved on the phone from an earlier visit: instant, and works offline
+        if let file = savedFile(for: id),
+           let data = try? Data(contentsOf: file),
+           let saved = try? JSONDecoder().decode(MealDetail.self, from: data) {
+            detailCache[id] = saved
+            return saved
+        }
+ 
         guard let url = URL(string: baseURL + "lookup.php?i=" + id) else { return nil }
         let json = try await fetchJSON(from: url)
         guard let meal = (json["meals"] as? [[String: Any]])?.first,
@@ -122,7 +131,43 @@ enum MealDB {
             sourceURL: link(from: meal["strSource"])
         )
         detailCache[id] = detail
+        if let file = savedFile(for: id), let data = try? JSONEncoder().encode(detail) {
+            try? data.write(to: file)
+        }
         return detail
+    }
+ 
+    // MARK: Saved recipes (Week 8)
+ 
+    // A folder in the app's cache, which iOS can clear if the phone runs low on space
+    private static var savedFolder: URL? {
+        guard let folder = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first?
+            .appendingPathComponent("recipes", isDirectory: true) else { return nil }
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        return folder
+    }
+ 
+    private static func savedFile(for id: String) -> URL? {
+        savedFolder?.appendingPathComponent("\(id).json")
+    }
+ 
+    // The most recently saved recipes, for when there's no internet
+    static func savedRecipes(limit: Int = 20) -> [MealSummary] {
+        guard let folder = savedFolder,
+              let files = try? FileManager.default.contentsOfDirectory(
+                at: folder, includingPropertiesForKeys: [.contentModificationDateKey]) else { return [] }
+ 
+        let newestFirst = files.sorted {
+            let first = (try? $0.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+            let second = (try? $1.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+            return first > second
+        }
+ 
+        return newestFirst.prefix(limit).compactMap { file in
+            guard let data = try? Data(contentsOf: file),
+                  let meal = try? JSONDecoder().decode(MealDetail.self, from: data) else { return nil }
+            return MealSummary(id: meal.id, name: meal.name, thumbnailURL: meal.imageURL)
+        }
     }
  
     // MARK: Diet checks

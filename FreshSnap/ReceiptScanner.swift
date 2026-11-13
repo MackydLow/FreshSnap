@@ -205,6 +205,14 @@ enum ReceiptParser {
             // 1. Stop at the total line
             if containsAny(endWords, in: line) { break }
  
+            // Multibuy line under an item, e.g. "2 x 0.89": set that item's amount
+            if let count = multibuyCount(in: line), !found.isEmpty {
+                var last = found.removeLast()
+                last.amount = last.amount.isEmpty ? "\(count) items" : "\(count) × \(last.amount)"
+                found.append(last)
+                continue
+            }
+ 
             guard let item = item(from: row) else { continue }
  
             // 2. Backup check: a price equal to everything above it is the total
@@ -266,6 +274,15 @@ enum ReceiptParser {
  
     private static func containsSkipWord(_ line: String) -> Bool {
         containsAny(skipWords, in: line)
+    }
+ 
+    // "2 X 0.89", "3 x £1.20" or "2 X @ 0.89" -> 2 or 3
+    private static func multibuyCount(in line: String) -> Int? {
+        let pattern = #"^\s*(\d+)\s*[X×]\s*(@\s*)?£?\d+\.\d{2}"#
+        guard let match = line.range(of: pattern, options: .regularExpression) else { return nil }
+        let digits = line[match].prefix { $0.isNumber || $0 == " " }.filter(\.isNumber)
+        guard let count = Int(digits), count > 1 else { return nil }
+        return count
     }
  
     private static func isOfferLine(_ line: String) -> Bool {

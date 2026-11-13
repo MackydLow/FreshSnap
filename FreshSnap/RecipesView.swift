@@ -152,9 +152,28 @@ struct RecipesView: View {
             ContentUnavailableView {
                 Label("Couldn't load recipes", systemImage: "wifi.exclamationmark")
             } description: {
-                Text("Recipes need an internet connection.")
+                Text("Finding new recipes needs an internet connection.")
             } actions: {
                 Button("Try again") { Task { await loadRecipes() } }
+            }
+ 
+            // Recipes saved on the phone still open offline
+            let saved = MealDB.savedRecipes()
+            if !saved.isEmpty {
+                Text("Saved recipes you can open offline")
+                    .font(.headline)
+                    .padding(.horizontal)
+                LazyVGrid(columns: columns, spacing: 12) {
+                    ForEach(saved) { meal in
+                        NavigationLink {
+                            RecipeDetailView(meal: meal, fridgeNames: fridge.map(\.name))
+                        } label: {
+                            RecipeCard(result: RecipeResult(meal: meal, uses: [], soonestDaysLeft: 0))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal)
             }
         } else if results.isEmpty {
             ContentUnavailableView("No recipes found", systemImage: "fork.knife",
@@ -281,10 +300,12 @@ struct RecipeCard: View {
                 .font(.headline)
                 .lineLimit(2)
  
-            Text("Uses: \(result.uses.joined(separator: ", "))")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
+            if !result.uses.isEmpty {
+                Text("Uses: \(result.uses.joined(separator: ", "))")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
         // VoiceOver reads the card as one item: "Chicken pasta, Uses: chicken, spinach"

@@ -10,6 +10,20 @@ import SwiftUI
 // FreshSnap – Week 5, Steps 4 and 5
 // The screens from the "Login or sign up" flow diagram.
  
+// MARK: - Friendly error messages (Week 8)
+ 
+// Firebase error codes: 17020 = no internet, 17010 = too many attempts
+func friendlyAuthMessage(for error: Error, otherwise fallback: String) -> String {
+    let nsError = error as NSError
+    if nsError.code == 17020 || nsError.domain == NSURLErrorDomain {
+        return "No internet connection. Check your Wi-Fi or mobile data and try again."
+    }
+    if nsError.code == 17010 {
+        return "Too many attempts. Wait a few minutes and try again."
+    }
+    return fallback
+}
+ 
 // MARK: - Root: Welcome when logged out, the main tabs when logged in
  
 struct RootView: View {
@@ -134,7 +148,7 @@ struct SignUpView: View {
             )
         } catch {
             // e.g. "The email address is already in use by another account."
-            errorMessage = error.localizedDescription
+            errorMessage = friendlyAuthMessage(for: error, otherwise: error.localizedDescription)
         }
         isWorking = false
     }
@@ -198,7 +212,10 @@ struct LoginView: View {
                 password: password
             )
         } catch {
-            errorMessage = "Email or password is incorrect. Try again, or reset your password."
+            errorMessage = friendlyAuthMessage(
+                for: error,
+                otherwise: "Email or password is incorrect. Try again, or reset your password."
+            )
         }
         isWorking = false
     }
@@ -253,7 +270,7 @@ struct ForgotPasswordView: View {
             try await auth.sendPasswordReset(email: email.trimmingCharacters(in: .whitespaces))
             message = "If an account uses that email, a reset link is on its way. Check your junk folder too."
         } catch {
-            message = error.localizedDescription
+            message = friendlyAuthMessage(for: error, otherwise: error.localizedDescription)
         }
         isWorking = false
     }
