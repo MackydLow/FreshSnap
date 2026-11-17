@@ -2,30 +2,39 @@
 //  RecipeDetailView.swift
 //  FreshSnap
 //
-//  Created by Mackenzie Low on 06/11/2026.
+//  Created by Mack Low on 06/11/2026.
 //
 
 import SwiftUI
 import SwiftData
- 
-// FreshSnap – Week 6, Step 6 (Week 7: "I cooked this"; Week 8: nutrition estimate)
+
+// FreshSnap – Week 6, Step 6 (Week 7: "I cooked this"; Week 8: nutrition estimate; Week 9: favourites)
 // View recipe: photo, ingredients (marking what's in your fridge), method and video.
 // "I cooked this" marks the fridge food used in the recipe as Used.
- 
+
 struct RecipeDetailView: View {
     let meal: MealSummary
     let fridgeNames: [String]
- 
+
     @State private var detail: MealDetail?
     @State private var failed = false
     @State private var showingCooked = false
     @State private var cookedMessage: String?
- 
+
+    // Favourites (Week 9)
+    @Environment(AuthManager.self) private var auth
+    @Environment(\.modelContext) private var modelContext
+    @Query private var allFavourites: [FavouriteRecipe]
+
+    private var favourite: FavouriteRecipe? {
+        allFavourites.first { $0.ownerID == auth.userID && $0.mealID == meal.id }
+    }
+
     // Words from fridge food, used to spot ingredients you already have
     private var fridgeWords: Set<String> {
         fridgeNames.reduce(into: Set<String>()) { $0.formUnion(MealDB.keyWords(for: $1)) }
     }
- 
+
     var body: some View {
         Group {
             if let detail {
@@ -44,6 +53,19 @@ struct RecipeDetailView: View {
         }
         .navigationTitle(meal.name)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                if detail != nil {
+                    Button {
+                        toggleFavourite()
+                    } label: {
+                        Image(systemName: favourite == nil ? "heart" : "heart.fill")
+                            .foregroundStyle(favourite == nil ? Color.accentColor : .red)
+                    }
+                    .accessibilityLabel(favourite == nil ? "Add to favourites" : "Remove from favourites")
+                }
+            }
+        }
         .task { await load() }
         .sheet(isPresented: $showingCooked) {
             if let detail {
@@ -65,7 +87,7 @@ struct RecipeDetailView: View {
             Button("OK", role: .cancel) {}
         }
     }
- 
+
     private func recipe(_ detail: MealDetail) -> some View {
         List {
             Section {
@@ -77,7 +99,7 @@ struct RecipeDetailView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 12))
                 .listRowInsets(EdgeInsets())
                 .accessibilityHidden(true)
- 
+
                 VStack(alignment: .leading, spacing: 4) {
                     Text(detail.name)
                         .font(.title2.bold())
@@ -85,7 +107,7 @@ struct RecipeDetailView: View {
                         .foregroundStyle(.secondary)
                 }
             }
- 
+
             Section("Ingredients") {
                 ForEach(detail.ingredients) { ingredient in
                     HStack {
@@ -106,7 +128,7 @@ struct RecipeDetailView: View {
                     }
                 }
             }
- 
+
             Section("Method") {
                 ForEach(Array(detail.steps.enumerated()), id: \.offset) { index, step in
                     HStack(alignment: .top, spacing: 12) {
@@ -118,10 +140,10 @@ struct RecipeDetailView: View {
                     .padding(.vertical, 2)
                 }
             }
- 
+
             // Estimated nutrition (Week 8, Extra 3)
             RecipeNutritionSection(meal: detail)
- 
+
             Section {
                 Button {
                     showingCooked = true
@@ -132,7 +154,7 @@ struct RecipeDetailView: View {
             } footer: {
                 Text("Marks the food you used as Used, and adds it to your money saved.")
             }
- 
+
             Section {
                 if let youtube = detail.youtubeURL {
                     Link(destination: youtube) {
@@ -149,13 +171,26 @@ struct RecipeDetailView: View {
             }
         }
     }
- 
+
     private func inFridge(_ ingredient: String) -> Bool {
         !MealDB.keyWords(for: ingredient).isDisjoint(with: fridgeWords)
     }
- 
+
+    private func toggleFavourite() {
+        if let favourite {
+            modelContext.delete(favourite)
+        } else if let detail {
+            modelContext.insert(FavouriteRecipe(ownerID: auth.userID, detail: detail))
+        }
+    }
+
     private func load() async {
         failed = false
+        // Favourites are stored in full, so they open without internet
+        if let saved = favourite?.detail {
+            detail = saved
+            return
+        }
         do {
             detail = try await MealDB.meal(id: meal.id)
             failed = detail == nil
@@ -164,38 +199,38 @@ struct RecipeDetailView: View {
         }
     }
 }
- 
+
 // MARK: - I cooked this (Week 7)
- 
+
 struct CookedThisView: View {
     let ingredientNames: [String]
     let onDone: (Double) -> Void     // passes back the money saved
- 
+
     @Environment(AuthManager.self) private var auth
     @Environment(\.dismiss) private var dismiss
     @Query(sort: \FoodItem.expiryDate) private var allFood: [FoodItem]
- 
+
     @State private var ticked: Set<PersistentIdentifier> = []
     @State private var hasPreTicked = false
- 
+
     private var fridge: [FoodItem] {
         allFood.filter { $0.ownerID == auth.userID && $0.status == .inFridge }
     }
- 
+
     private var recipeWords: Set<String> {
         ingredientNames.reduce(into: Set<String>()) { $0.formUnion(MealDB.keyWords(for: $1)) }
     }
- 
+
     // Fridge food that matches the recipe's ingredients
     private var inRecipe: [FoodItem] {
         fridge.filter { !MealDB.keyWords(for: $0.name).isDisjoint(with: recipeWords) }
     }
- 
+
     private var otherFood: [FoodItem] {
         let matched = Set(inRecipe.map(\.persistentModelID))
         return fridge.filter { !matched.contains($0.persistentModelID) }
     }
- 
+
     var body: some View {
         NavigationStack {
             List {
@@ -209,7 +244,7 @@ struct CookedThisView: View {
                         ForEach(inRecipe) { food in row(for: food) }
                     }
                 }
- 
+
                 if !otherFood.isEmpty {
                     Section("Other food in your fridge") {
                         ForEach(otherFood) { food in row(for: food) }
@@ -235,7 +270,7 @@ struct CookedThisView: View {
             }
         }
     }
- 
+
     private func row(for food: FoodItem) -> some View {
         let isTicked = ticked.contains(food.persistentModelID)
         return Button {
@@ -266,13 +301,14 @@ struct CookedThisView: View {
         }
         .accessibilityAddTraits(isTicked ? .isSelected : [])
     }
- 
+
     private func markAsUsed() {
         let used = fridge.filter { ticked.contains($0.persistentModelID) }
         let saved = used.reduce(0) { $0 + $1.price }
         for food in used {
             food.status = .used
         }
+        AppSettings.recordCooked(for: auth.userID)   // Week 9: for the Chef badge
         dismiss()
         onDone(saved)
     }

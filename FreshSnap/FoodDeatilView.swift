@@ -2,27 +2,28 @@
 //  FoodDeatilView.swift
 //  FreshSnap
 //
-//  Created by Mackenzie Low on 21/10/2026.
+//  Created by Mack Low on 21/10/2026.
 //
 
 import SwiftUI
 import SwiftData
- 
-// FreshSnap – Week 5, Step 9 (Week 7: Edit, Delete, confirm Thrown away; Week 8: nutrition)
+
+// FreshSnap – Week 5, Step 9 (Week 7: Edit, Delete, confirm Thrown away; Week 8: nutrition; Week 9: freezer)
 // The Food item screen: details, then "Product used or thrown away?"
 // Used adds the price to money saved; both take the food out of the fridge.
 // Delete is for mistakes, and doesn't count as waste.
- 
+
 struct FoodDetailView: View {
     let food: FoodItem
- 
+
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
- 
+
     @State private var showingEdit = false
     @State private var confirmingThrowAway = false
     @State private var confirmingDelete = false
- 
+    @State private var freezerMessage: String?
+
     var body: some View {
         List {
             Section {
@@ -32,10 +33,16 @@ struct FoodDetailView: View {
                     Text(food.expiryText)
                         .font(.headline)
                         .foregroundStyle(food.daysLeft <= 1 ? .red : .secondary)
+                    if let frozenDate = food.frozenDate {
+                        Label("In the freezer since \(frozenDate.formatted(.dateTime.day().month()))",
+                              systemImage: "snowflake")
+                            .font(.subheadline)
+                            .foregroundStyle(.blue)
+                    }
                 }
                 .padding(.vertical, 4)
             }
- 
+
             Section("Details") {
                 LabeledContent("Use-by date", value: food.expiryDate.formatted(date: .long, time: .omitted))
                 if !food.amount.isEmpty {
@@ -46,7 +53,7 @@ struct FoodDetailView: View {
                                value: food.price > 0 ? food.price.formatted(.currency(code: "GBP")) : "Not added")
                 LabeledContent("Added", value: food.addedDate.formatted(date: .abbreviated, time: .omitted))
             }
- 
+
             // Nutrition (Week 8)
             if let nutrition = food.nutrition {
                 Section {
@@ -63,14 +70,35 @@ struct FoodDetailView: View {
                         .foregroundStyle(.secondary)
                 }
             }
- 
+
+            // Freezer (Week 9)
+            Section {
+                if food.frozenDate == nil {
+                    Button {
+                        moveToFreezer()
+                    } label: {
+                        Label("Move to freezer", systemImage: "snowflake")
+                    }
+                } else {
+                    Button {
+                        takeOutOfFreezer()
+                    } label: {
+                        Label("Take out of freezer", systemImage: "drop")
+                    }
+                }
+            } footer: {
+                Text(food.frozenDate == nil
+                     ? "Freezing food before its use-by date keeps it for much longer, using USDA FoodKeeper freezer guidance."
+                     : "Defrost food in the fridge and use it within a day.")
+            }
+
             Section {
                 Button {
                     finish(.used)
                 } label: {
                     Label("Used", systemImage: "checkmark.circle")
                 }
- 
+
                 Button(role: .destructive) {
                     confirmingThrowAway = true
                 } label: {
@@ -79,7 +107,7 @@ struct FoodDetailView: View {
             } footer: {
                 Text("Marking food as used adds its price to your money saved.")
             }
- 
+
             Section {
                 Button("Delete", role: .destructive) {
                     confirmingDelete = true
@@ -105,6 +133,12 @@ struct FoodDetailView: View {
         } message: {
             Text("This counts as wasted food in your stats.")
         }
+        .alert(freezerMessage ?? "", isPresented: Binding(
+            get: { freezerMessage != nil },
+            set: { if !$0 { freezerMessage = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        }
         .confirmationDialog("Delete \(food.name)?",
                             isPresented: $confirmingDelete,
                             titleVisibility: .visible) {
@@ -113,13 +147,27 @@ struct FoodDetailView: View {
             Text("It will be removed completely and won't count as waste.")
         }
     }
- 
+
     // Saves the choice (SwiftData saves automatically) and goes back to the fridge.
     private func finish(_ status: FoodStatus) {
         food.status = status
         dismiss()
     }
- 
+
+    // Week 9: freezing extends the use-by date using FoodKeeper's freezer time
+    private func moveToFreezer() {
+        let estimate = ShelfLife.freezerEstimate(forName: food.name)
+        food.frozenDate = .now
+        food.expiryDate = estimate.date
+        freezerMessage = "Moved to the freezer. Now use by \(estimate.date.formatted(date: .long, time: .omitted)) (\(estimate.source))."
+    }
+
+    private func takeOutOfFreezer() {
+        food.frozenDate = nil
+        food.expiryDate = ShelfLife.defrostedUseBy()
+        freezerMessage = "Taken out of the freezer. Keep it in the fridge to defrost and use it by tomorrow."
+    }
+
     // Go back first, then delete once this screen has closed,
     // so it never tries to show food that no longer exists.
     private func deleteFood() {
@@ -131,19 +179,19 @@ struct FoodDetailView: View {
         }
     }
 }
- 
+
 // MARK: - Edit food (Week 7)
- 
+
 struct EditFoodView: View {
     let food: FoodItem
     @Environment(\.dismiss) private var dismiss
- 
+
     @State private var name: String
     @State private var expiryDate: Date
     @State private var amount: String
     @State private var priceText: String
     @State private var category: String
- 
+
     init(food: FoodItem) {
         self.food = food
         _name = State(initialValue: food.name)
@@ -152,7 +200,7 @@ struct EditFoodView: View {
         _priceText = State(initialValue: food.price > 0 ? String(format: "%.2f", food.price) : "")
         _category = State(initialValue: food.category)
     }
- 
+
     var body: some View {
         NavigationStack {
             Form {
@@ -161,7 +209,7 @@ struct EditFoodView: View {
                     DatePicker("Use-by date", selection: $expiryDate, displayedComponents: .date)
                     TextField("Amount, e.g. 2 pack or 500 g", text: $amount)
                 }
- 
+
                 Section {
                     TextField("Price paid (optional)", text: $priceText)
                         .keyboardType(.decimalPad)
@@ -183,14 +231,14 @@ struct EditFoodView: View {
             }
         }
     }
- 
+
     // Only changes the food when Save is tapped; Cancel leaves it as it was.
     private func save() {
         let cleanedPrice = priceText
             .replacingOccurrences(of: "£", with: "")
             .replacingOccurrences(of: ",", with: ".")
             .trimmingCharacters(in: .whitespaces)
- 
+
         food.name = name.trimmingCharacters(in: .whitespaces)
         food.expiryDate = expiryDate
         food.amount = amount.trimmingCharacters(in: .whitespaces)
@@ -199,13 +247,13 @@ struct EditFoodView: View {
         dismiss()
     }
 }
- 
+
 // MARK: - Nutrition rows (Week 8, Extra 2)
- 
+
 // UK front-of-pack traffic lights for food, per 100 g
 enum TrafficLight {
     case low, medium, high
- 
+
     var label: String {
         switch self {
         case .low: return "Low"
@@ -213,7 +261,7 @@ enum TrafficLight {
         case .high: return "High"
         }
     }
- 
+
     var colour: Color {
         switch self {
         case .low: return .green
@@ -221,7 +269,7 @@ enum TrafficLight {
         case .high: return .red
         }
     }
- 
+
     // Low at or below the first number, high above the second
     static func rating(_ grams: Double, low: Double, high: Double) -> TrafficLight {
         if grams <= low { return .low }
@@ -229,11 +277,11 @@ enum TrafficLight {
         return .medium
     }
 }
- 
+
 // The values in the same order as a UK food label
 struct NutritionRows: View {
     let nutrition: Nutrition
- 
+
     var body: some View {
         if let calories = nutrition.calories {
             LabeledContent("Energy", value: "\(Int(calories.rounded())) kcal")
@@ -246,7 +294,7 @@ struct NutritionRows: View {
         row("Protein", nutrition.protein)
         row("Salt", nutrition.salt, rating: { .rating($0, low: 0.3, high: 1.5) })
     }
- 
+
     @ViewBuilder
     private func row(_ name: String, _ grams: Double?,
                      rating: ((Double) -> TrafficLight)? = nil) -> some View {

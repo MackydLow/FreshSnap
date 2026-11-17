@@ -2,16 +2,16 @@
 //  FridgeView.swift
 //  FreshSnap
 //
-//  Created by Mackenzie Low on 21/10/2026.
+//  Created by Mack Low on 21/10/2026.
 //
 
 import SwiftUI
 import SwiftData
- 
-// FreshSnap – Weeks 5 and 6
+
+// FreshSnap – Weeks 5 to 9
 // Three tabs: Fridge, Recipes and Scan.
 // Profile opens from a button in the top-right corner of every screen.
- 
+
 struct ContentView: View {
     var body: some View {
         // The selected tab can be changed by the app, e.g. when a reminder is tapped
@@ -22,20 +22,20 @@ struct ContentView: View {
             FridgeView()
                 .tabItem { Label("Fridge", systemImage: "refrigerator") }
                 .tag(AppTab.fridge)
- 
+
             RecipesView()
                 .tabItem { Label("Recipes", systemImage: "fork.knife") }
                 .tag(AppTab.recipes)
- 
+
             ScanView()
                 .tabItem { Label("Scan", systemImage: "camera.viewfinder") }
                 .tag(AppTab.scan)
         }
     }
 }
- 
+
 // MARK: - Profile button (top right on every screen)
- 
+
 struct ProfileButton: ViewModifier {
     func body(content: Content) -> some View {
         content.toolbar {
@@ -50,37 +50,38 @@ struct ProfileButton: ViewModifier {
         }
     }
 }
- 
+
 extension View {
     func profileButton() -> some View {
         modifier(ProfileButton())
     }
 }
- 
+
 // FridgeView, RecipesView and ScanView each live in their own files.
- 
+
 // Profile slides in on top of the current tab, with a back button.
 struct ProfileView: View {
     @Environment(AuthManager.self) private var auth
     @Query private var allFood: [FoodItem]
- 
+    @Query private var allFavourites: [FavouriteRecipe]
+
     // Only this user's food
     private var myFood: [FoodItem] {
         allFood.filter { $0.ownerID == auth.userID }
     }
- 
+
     private var moneySaved: Double {
         myFood.filter { $0.status == .used }.reduce(0) { $0 + $1.price }
     }
- 
+
     private var usedCount: Int {
         myFood.filter { $0.status == .used }.count
     }
- 
+
     private var thrownAwayCount: Int {
         myFood.filter { $0.status == .thrownAway }.count
     }
- 
+
     var body: some View {
         List {
             Section("Money saved") {
@@ -89,7 +90,17 @@ struct ProfileView: View {
                 LabeledContent("Food used", value: "\(usedCount)")
                 LabeledContent("Food thrown away", value: "\(thrownAwayCount)")
             }
- 
+
+            // Week 9: weekly chart of food used and thrown away
+            ImpactSection(food: myFood)
+
+            // Week 9: no-waste streak and badges
+            BadgesSection(
+                food: myFood,
+                favouriteCount: allFavourites.filter { $0.ownerID == auth.userID }.count,
+                cookedCount: AppSettings.cookedCount(for: auth.userID)
+            )
+
             Section("Your details") {
                 LabeledContent("Name", value: auth.name)
                 LabeledContent("Email", value: auth.email)
@@ -97,7 +108,7 @@ struct ProfileView: View {
                     EditDetailsView()
                 }
             }
- 
+
             Section {
                 NavigationLink {
                     SettingsView()
@@ -107,14 +118,14 @@ struct ProfileView: View {
             } footer: {
                 Text("Reminder time, diet and privacy.")
             }
- 
+
             Section {
                 Button("Log out", role: .destructive) {
                     ReminderManager.cancelAll()
                     auth.logOut()
                 }
             }
- 
+
             Section {
                 NavigationLink {
                     DeleteAccountView()

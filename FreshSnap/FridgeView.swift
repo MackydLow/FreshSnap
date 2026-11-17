@@ -1,62 +1,72 @@
+//
+//  FridgeView.swift
+//  FreshSnap
+//
+//  Created by Mack Low on 06/11/2026.
+//
+
 import SwiftUI
 import SwiftData
- 
-// FreshSnap – Week 5, Steps 8 to 10 (Week 7, Steps 1, 2 and 5; Week 8: search, Scan button, accessibility)
+
+// FreshSnap – Week 5, Steps 8 to 10 (Week 7, Steps 1, 2 and 5; Week 8: search, Scan button, accessibility; Week 9: freezer)
 // The virtual fridge: food you still have, with "Filter and ordering"
 // (flow: ordering or filtering? -> order by name or use-by date / filter -> view products with changes).
- 
+
 enum FridgeOrder: String, CaseIterable, Identifiable {
     case useBy = "Use-by date"
     case name = "Name (A–Z)"
     case recentlyAdded = "Recently added"
- 
+
     var id: Self { self }
 }
- 
+
 enum FridgeFilter: Hashable {
     case all
     case expiringSoon
+    case frozen
     case category(String)
- 
+
     var title: String {
         switch self {
         case .all: return "All food"
         case .expiringSoon: return "Expiring soon"
+        case .frozen: return "In the freezer"
         case .category(let name): return name
         }
     }
 }
- 
+
 struct FridgeView: View {
     @Environment(AuthManager.self) private var auth
     @Query(sort: \FoodItem.expiryDate) private var allFood: [FoodItem]
- 
+
     @AppStorage("fridgeOrder") private var order: FridgeOrder = .useBy   // remembered between visits
     @Environment(\.dynamicTypeSize) private var textSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var filter: FridgeFilter = .all
     @State private var showingAddFood = false
     @State private var searchText = ""
- 
+
     // Only this user's food that is still in the fridge.
     private var fridge: [FoodItem] {
         allFood.filter { $0.ownerID == auth.userID && $0.status == .inFridge }
     }
- 
+
     // The fridge after the search, the chosen filter and order
     private var visibleFood: [FoodItem] {
         var filtered: [FoodItem]
         switch filter {
         case .all: filtered = fridge
         case .expiringSoon: filtered = fridge.filter { $0.daysLeft <= 2 }
+        case .frozen: filtered = fridge.filter { $0.frozenDate != nil }
         case .category(let name): filtered = fridge.filter { $0.category == name }
         }
- 
+
         let search = searchText.trimmingCharacters(in: .whitespaces)
         if !search.isEmpty {
             filtered = filtered.filter { $0.name.localizedCaseInsensitiveContains(search) }
         }
- 
+
         switch order {
         case .useBy:
             return filtered.sorted { $0.expiryDate < $1.expiryDate }
@@ -66,23 +76,23 @@ struct FridgeView: View {
             return filtered.sorted { $0.addedDate > $1.addedDate }
         }
     }
- 
+
     // Categories that actually have food in them
     private var categoriesInFridge: [String] {
         FoodCategory.all.filter { category in fridge.contains { $0.category == category } }
     }
- 
+
     // Changes whenever any food's name or date changes
     private var reminderKey: String {
         fridge.map { "\($0.name)|\($0.expiryDate.timeIntervalSince1970)" }.joined(separator: ",")
     }
- 
+
     // Two columns normally; one column at the largest (accessibility) text sizes
     private var columns: [GridItem] {
         let count = textSize.isAccessibilitySize ? 1 : 2
         return Array(repeating: GridItem(.flexible(), spacing: 12), count: count)
     }
- 
+
     var body: some View {
         NavigationStack {
             Group {
@@ -107,7 +117,7 @@ struct FridgeView: View {
                             if filter != .all {
                                 filterBar
                             }
- 
+
                             if visibleFood.isEmpty {
                                 if !searchText.trimmingCharacters(in: .whitespaces).isEmpty {
                                     ContentUnavailableView {
@@ -173,15 +183,15 @@ struct FridgeView: View {
             }
         }
     }
- 
+
     private func showExpiringSoonIfAsked() {
         guard AppRouter.shared.showExpiringSoon else { return }
         withAnimation(.snappy) { filter = .expiringSoon }
         AppRouter.shared.showExpiringSoon = false
     }
- 
+
     // MARK: "Filter and ordering" on the left, add on the right (as in the wireframe)
- 
+
     private var toolbarRow: some View {
         HStack {
             Menu {
@@ -191,11 +201,14 @@ struct FridgeView: View {
                     }
                     .pickerStyle(.inline)
                 }
- 
+
                 Section("Show") {
                     Picker("Show", selection: $filter) {
                         Text(FridgeFilter.all.title).tag(FridgeFilter.all)
                         Text(FridgeFilter.expiringSoon.title).tag(FridgeFilter.expiringSoon)
+                        if fridge.contains(where: { $0.frozenDate != nil }) {
+                            Text(FridgeFilter.frozen.title).tag(FridgeFilter.frozen)
+                        }
                         ForEach(categoriesInFridge, id: \.self) { category in
                             Text(category).tag(FridgeFilter.category(category))
                         }
@@ -208,9 +221,9 @@ struct FridgeView: View {
                         ? "line.3.horizontal.decrease.circle"
                         : "line.3.horizontal.decrease.circle.fill")
             }
- 
+
             Spacer()
- 
+
             Button {
                 showingAddFood = true
             } label: {
@@ -222,7 +235,7 @@ struct FridgeView: View {
         .padding(.horizontal)
         .padding(.top, 4)
     }
- 
+
     // Shows what's being viewed, with a way back to everything
     private var filterBar: some View {
         HStack {
@@ -240,10 +253,10 @@ struct FridgeView: View {
         .padding(.horizontal)
     }
 }
- 
+
 struct FoodCard: View {
     let food: FoodItem
- 
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(food.name)
@@ -256,6 +269,11 @@ struct FoodCard: View {
                 Text(food.amount)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
+            }
+            if food.frozenDate != nil {
+                Label("Frozen", systemImage: "snowflake")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.blue)
             }
         }
         .frame(maxWidth: .infinity, minHeight: 100, alignment: .topLeading)

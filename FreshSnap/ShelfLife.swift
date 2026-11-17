@@ -2,21 +2,21 @@
 //  ShelfLife.swift
 //  FreshSnap
 //
-//  Created by Mackenzie Low on 30/10/2026.
+//  Created by Mack Low on 30/10/2026.
 //
 
 import Foundation
- 
-// FreshSnap – Week 6, Steps 2 and 5
+
+// FreshSnap – Week 6, Steps 2 and 5 (Week 9: freezer)
 // Estimates a use-by date when there's no printed date (barcodes and receipts).
 // 1. USDA FoodKeeper guidance for that product, if it's found
 // 2. Otherwise, an average for the food's category
- 
+
 struct ShelfLifeEstimate {
     let date: Date
     let source: String      // shown on Review scan, e.g. "FoodKeeper (Milk), 7 days"
 }
- 
+
 enum ShelfLife {
     static func estimate(forName name: String, category: String) -> ShelfLifeEstimate {
         if let match = FoodKeeper.match(name: name, category: category) {
@@ -25,14 +25,31 @@ enum ShelfLife {
                 source: "FoodKeeper (\(match.entryName)), \(dayText(match.days))"
             )
         }
- 
+
         let days = estimatedDays(forCategory: category)
         return ShelfLifeEstimate(
             date: date(inDays: days),
             source: "\(category) average, \(dayText(days))"
         )
     }
- 
+
+    // Week 9: how long food keeps once moved to the freezer
+    static func freezerEstimate(forName name: String) -> ShelfLifeEstimate {
+        if let match = FoodKeeper.freezerMatch(name: name) {
+            let days = min(match.days, 365)   // never more than a year
+            return ShelfLifeEstimate(
+                date: date(inDays: days),
+                source: "FoodKeeper freezer guidance (\(match.entryName)), \(dayText(days))"
+            )
+        }
+        return ShelfLifeEstimate(date: date(inDays: 90), source: "freezer average, 90 days")
+    }
+
+    // Food defrosted in the fridge should be used within a day
+    static func defrostedUseBy() -> Date {
+        date(inDays: 1)
+    }
+
     static func estimatedDays(forCategory category: String) -> Int {
         switch category {
         case "Meat and fish": return 2
@@ -44,15 +61,15 @@ enum ShelfLife {
         default: return 7
         }
     }
- 
+
     static func estimatedUseBy(forCategory category: String) -> Date {
         date(inDays: estimatedDays(forCategory: category))
     }
- 
+
     private static func date(inDays days: Int) -> Date {
         Calendar.current.date(byAdding: .day, value: days, to: .now) ?? .now
     }
- 
+
     private static func dayText(_ days: Int) -> String {
         days == 1 ? "1 day" : "\(days) days"
     }

@@ -2,21 +2,21 @@
 //  AccountViews.swift
 //  FreshSnap
 //
-//  Created by Mackenzie Low on 06/11/2026.
+//  Created by Mack Low on 06/11/2026.
 //
 
 import SwiftUI
 import SwiftData
- 
+
 // FreshSnap – Week 7, Step 5
 // Profile extras: change name or email (flow: "Change name or email? -> Yes"),
 // and delete account (required by Apple for apps with sign-up).
- 
+
 // MARK: - Edit name or email
- 
+
 struct EditDetailsView: View {
     @Environment(AuthManager.self) private var auth
- 
+
     @State private var name = ""
     @State private var newEmail = ""
     @State private var password = ""
@@ -24,7 +24,7 @@ struct EditDetailsView: View {
     @State private var emailMessage: String?
     @State private var emailFailed = false
     @State private var isWorking = false
- 
+
     var body: some View {
         Form {
             Section {
@@ -41,7 +41,7 @@ struct EditDetailsView: View {
             } header: {
                 Text("Name")
             }
- 
+
             Section {
                 LabeledContent("Current email", value: auth.email)
                 TextField("New email", text: $newEmail)
@@ -67,7 +67,7 @@ struct EditDetailsView: View {
         .navigationTitle("Edit details")
         .onAppear { name = auth.name }
     }
- 
+
     private func saveName() async {
         isWorking = true
         do {
@@ -78,7 +78,7 @@ struct EditDetailsView: View {
         }
         isWorking = false
     }
- 
+
     private func changeEmail() async {
         isWorking = true
         do {
@@ -94,38 +94,39 @@ struct EditDetailsView: View {
         isWorking = false
     }
 }
- 
+
 // MARK: - Delete account
- 
+
 struct DeleteAccountView: View {
     @Environment(AuthManager.self) private var auth
     @Environment(\.modelContext) private var modelContext
     @Query private var allFood: [FoodItem]
- 
+    @Query private var allFavourites: [FavouriteRecipe]
+
     @State private var password = ""
     @State private var confirming = false
     @State private var errorMessage: String?
     @State private var isWorking = false
- 
+
     var body: some View {
         Form {
             Section {
                 Text("This permanently deletes your FreshSnap account, the food saved in your fridge on this iPhone, your money saved, and your reminders. It can't be undone.")
             }
- 
+
             Section {
                 SecureField("Your password", text: $password)
                     .textContentType(.password)
             } footer: {
                 Text("For your security, enter your password to confirm it's you.")
             }
- 
+
             if let errorMessage {
                 Section {
                     Text(errorMessage).foregroundStyle(.red)
                 }
             }
- 
+
             Section {
                 Button("Delete account", role: .destructive) {
                     confirming = true
@@ -142,18 +143,21 @@ struct DeleteAccountView: View {
             Text("Everything will be deleted. This can't be undone.")
         }
     }
- 
+
     private func deleteAccount() async {
         isWorking = true
         errorMessage = nil
         let userID = auth.userID
         let myFood = allFood.filter { $0.ownerID == userID }
- 
+
         do {
             // Delete the Firebase account first, so nothing is lost if this fails
             try await auth.deleteAccount(password: password)
             for item in myFood {
                 modelContext.delete(item)
+            }
+            for favourite in allFavourites where favourite.ownerID == userID {
+                modelContext.delete(favourite)
             }
             ReminderManager.cancelAll()
         } catch {

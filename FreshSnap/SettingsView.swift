@@ -2,7 +2,7 @@
 //  SettingsView.swift
 //  FreshSnap
 //
-//  Created by Mackenzie Low on 06/11/2026.
+//  Created by Mack Low on 06/11/2026.
 //
 
 import SwiftUI

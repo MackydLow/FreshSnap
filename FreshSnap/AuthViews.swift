@@ -2,7 +2,7 @@
 //  AuthViews.swift
 //  FreshSnap
 //
-//  Created by Mackenzie Low on 21/10/2026.
+//  Created by Mack Low on 21/10/2026.
 //
 
 import SwiftUI
