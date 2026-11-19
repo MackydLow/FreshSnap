@@ -8,7 +8,7 @@
 import SwiftUI
 import SwiftData
 
-// FreshSnap – Week 6, Step 6 (Week 7: diet filter)
+// FreshSnap – Week 6, Step 6 (Week 7: diet filter; Week 9: all recipes shown, chips filter, more recipes)
 // The Recipes tab: meal ideas from TheMealDB using food that needs eating first.
 // Flow: view recipes -> filter by ingredients -> click on recipe to view it.
 
@@ -24,14 +24,14 @@ struct RecipesView: View {
     @Environment(AuthManager.self) private var auth
     @Query(sort: \FoodItem.expiryDate) private var allFood: [FoodItem]
 
-    @State private var selected: Set<PersistentIdentifier> = []
-    @State private var chosenDefaults = false
-    @State private var results: [RecipeResult] = []
+    // Week 9: every recipe for the fridge is loaded; chips only filter them
+    @State private var selected: Set<String> = []          // food names
+    @State private var allResults: [RecipeResult] = []
     @State private var isLoading = false
     @State private var loadingMessage = "Finding recipes…"
     @State private var failed = false
 
-    // Diet choices from Settings; changing them reloads the recipes
+    // Diet choices from Preferences; changing them reloads the recipes
     @AppStorage(AppSettings.vegetarianKey) private var vegetarian = false
     @AppStorage(AppSettings.veganKey) private var vegan = false
     @AppStorage(AppSettings.nutFreeKey) private var nutFree = false
@@ -41,9 +41,9 @@ struct RecipesView: View {
         DietNeeds(vegetarian: vegetarian, vegan: vegan, nutFree: nutFree, dairyFree: dairyFree)
     }
 
-    private let maxDietChecks = 30   // recipes checked behind the scenes per search
+    private let maxFoodsSearched = 25   // soonest-expiring foods searched
+    private let maxDietChecks = 80      // recipes checked behind the scenes for the diet
 
-    private let maxIngredients = 5
     @Environment(\.dynamicTypeSize) private var textSize
 
     // Two columns normally; one column at the largest (accessibility) text sizes
@@ -56,13 +56,30 @@ struct RecipesView: View {
         allFood.filter { $0.ownerID == auth.userID && $0.status == .inFridge }
     }
 
-    private var chosenFood: [FoodItem] {
-        fridge.filter { selected.contains($0.persistentModelID) }
+    // One chip per food name (two packs of chicken make one chip), soonest first
+    private struct FoodChip {
+        let name: String
+        let expiryText: String
     }
 
-    // Changes whenever the selection or diet changes, which reloads the recipes
-    private var selectionKey: String {
-        chosenFood.map(\.name).sorted().joined(separator: "|") + "#" + diet.summary
+    private var foodNames: [FoodChip] {
+        var seen: Set<String> = []
+        var chips: [FoodChip] = []
+        for food in fridge where seen.insert(food.name).inserted {
+            chips.append(FoodChip(name: food.name, expiryText: food.expiryText))
+        }
+        return chips
+    }
+
+    // The recipes shown: all of them, or only those using every chosen food
+    private var shownResults: [RecipeResult] {
+        guard !selected.isEmpty else { return allResults }
+        return allResults.filter { selected.isSubset(of: Set($0.uses)) }
+    }
+
+    // Reload only when the fridge or diet changes; tapping chips filters instantly
+    private var loadKey: String {
+        foodNames.prefix(maxFoodsSearched).map(\.name).joined(separator: "|") + "#" + diet.summary
     }
 
     var body: some View {
@@ -77,7 +94,7 @@ struct RecipesView: View {
                 } else {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 16) {
-                            ingredientPicker
+                            filterChips
                             recipeGrid
                         }
                         .padding(.vertical)
@@ -96,27 +113,41 @@ struct RecipesView: View {
                     }
                 }
             }
-            .onAppear(perform: chooseDefaultsIfNeeded)
-            .task(id: selectionKey) {
+            .task(id: loadKey) {
                 await loadRecipes()
+            }
+            // Drop filters for food that has left the fridge
+            .onChange(of: foodNames.map(\.name)) { _, names in
+                selected.formIntersection(names)
             }
         }
     }
 
-    // MARK: Filter by ingredients
+    // MARK: Filter chips
 
-    private var ingredientPicker: some View {
+    private var filterChips: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Use up")
-                .font(.headline)
-                .padding(.horizontal)
+            HStack {
+                Text("Filter by food")
+                    .font(.headline)
+                Spacer()
+                if !selected.isEmpty {
+                    Button("Clear") {
+                        withAnimation { selected.removeAll() }
+                    }
+                    .font(.subheadline.weight(.semibold))
+                }
+            }
+            .padding(.horizontal)
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    ForEach(fridge) { food in
-                        let isOn = selected.contains(food.persistentModelID)
+                    ForEach(foodNames, id: \.name) { food in
+                        let isOn = selected.contains(food.name)
                         Button {
-                            toggle(food)
+                            withAnimation {
+                                if isOn { selected.remove(food.name) } else { selected.insert(food.name) }
+                            }
                         } label: {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(food.name).font(.subheadline.weight(.semibold))
@@ -126,14 +157,16 @@ struct RecipesView: View {
                         .buttonStyle(.bordered)
                         .tint(isOn ? .accentColor : .gray)
                         .accessibilityAddTraits(isOn ? .isSelected : [])
-                        .accessibilityHint(isOn ? "Removes this food from the recipe search"
-                                                : "Adds this food to the recipe search")
+                        .accessibilityHint(isOn ? "Stops filtering recipes by this food"
+                                                : "Only shows recipes that use this food")
                     }
                 }
                 .padding(.horizontal)
             }
 
-            Text("Food that needs using in the next two days is chosen for you. Tap to change, up to \(maxIngredients).")
+            Text(selected.isEmpty
+                 ? "Showing recipes for everything in your fridge, using food that expires soonest first. Tap food to filter."
+                 : "Showing recipes that use \(selected.count == 1 ? "this food" : "all of these foods").")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .padding(.horizontal)
@@ -151,10 +184,7 @@ struct RecipesView: View {
 
     @ViewBuilder
     private var recipeGrid: some View {
-        if selected.isEmpty {
-            ContentUnavailableView("Choose some food", systemImage: "hand.tap",
-                                   description: Text("Tap food above to find meals that use it."))
-        } else if isLoading {
+        if isLoading {
             ProgressView(loadingMessage)
                 .frame(maxWidth: .infinity)
                 .padding(.top, 40)
@@ -167,7 +197,7 @@ struct RecipesView: View {
                 Button("Try again") { Task { await loadRecipes() } }
             }
 
-            // Recipes saved on the phone still open offline
+            // Recipes kept on the phone still open offline
             let saved = MealDB.savedRecipes()
             if !saved.isEmpty {
                 Text("Recent recipes available offline")
@@ -185,14 +215,27 @@ struct RecipesView: View {
                 }
                 .padding(.horizontal)
             }
-        } else if results.isEmpty {
+        } else if allResults.isEmpty {
             ContentUnavailableView("No recipes found", systemImage: "fork.knife",
                                    description: Text(diet.isEmpty
-                                       ? "Try choosing different or fewer foods."
-                                       : "No recipes using this food suit your diet. Try choosing different foods."))
+                                       ? "There are no recipes for the food in your fridge yet."
+                                       : "No recipes for your fridge food suit your diet."))
+        } else if shownResults.isEmpty {
+            ContentUnavailableView {
+                Label("No recipes use all of these", systemImage: "line.3.horizontal.decrease.circle")
+            } description: {
+                Text("Try filtering by fewer foods.")
+            } actions: {
+                Button("Clear filters") { withAnimation { selected.removeAll() } }
+            }
         } else {
+            Text(shownResults.count == 1 ? "1 recipe" : "\(shownResults.count) recipes")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal)
+
             LazyVGrid(columns: columns, spacing: 12) {
-                ForEach(results) { result in
+                ForEach(shownResults) { result in
                     NavigationLink {
                         RecipeDetailView(meal: result.meal, fridgeNames: fridge.map(\.name))
                     } label: {
@@ -205,30 +248,17 @@ struct RecipesView: View {
         }
     }
 
-    // MARK: Actions
-
-    // First visit: pick food expiring within two days, or the three soonest.
-    private func chooseDefaultsIfNeeded() {
-        guard !chosenDefaults, !fridge.isEmpty else { return }
-        chosenDefaults = true
-        let urgent = fridge.filter { $0.daysLeft <= 2 }
-        let picks = urgent.isEmpty ? Array(fridge.prefix(3)) : Array(urgent.prefix(maxIngredients))
-        selected = Set(picks.map(\.persistentModelID))
-    }
-
-    private func toggle(_ food: FoodItem) {
-        let id = food.persistentModelID
-        if selected.contains(id) {
-            selected.remove(id)
-        } else if selected.count < maxIngredients {
-            selected.insert(id)
-        }
-    }
+    // MARK: Loading
 
     private func loadRecipes() async {
-        let foods = chosenFood
-        guard !foods.isEmpty else {
-            results = []
+        let foods = fridge
+        var urgency: [String: Int] = [:]                   // soonest days left for each name
+        for food in foods {
+            urgency[food.name] = min(urgency[food.name] ?? .max, food.daysLeft)
+        }
+        let names = Array(foodNames.prefix(maxFoodsSearched).map(\.name))
+        guard !names.isEmpty else {
+            allResults = []
             return
         }
 
@@ -238,32 +268,58 @@ struct RecipesView: View {
         var found: [String: RecipeResult] = [:]
         var anySucceeded = false
 
-        for food in foods {
-            // Try the full name first, then simpler words, until meals are found
-            for term in MealDB.searchTerms(for: food.name) {
-                do {
-                    let meals = try await MealDB.meals(withIngredient: term)
-                    anySucceeded = true
-                    guard !meals.isEmpty else { continue }
+        // Week 9: every food is searched at the same time, so loading stays quick
+        // even with more searches per food.
+        let results = await withTaskGroup(of: (name: String, meals: [MealSummary], reached: Bool).self) { group in
+            for name in names {
+                group.addTask {
+                    let plan = await MealDB.searchPlan(for: name)
+                    var meals: [MealSummary] = []
+                    var reached = false
 
-                    for meal in meals {
-                        if var existing = found[meal.id] {
-                            existing.uses.append(food.name)
-                            existing.soonestDaysLeft = min(existing.soonestDaysLeft, food.daysLeft)
-                            found[meal.id] = existing
-                        } else {
-                            found[meal.id] = RecipeResult(meal: meal, uses: [food.name],
-                                                          soonestDaysLeft: food.daysLeft)
+                    // Combine every main search word (e.g. "chicken breast" and "chicken")
+                    for term in plan.main {
+                        if let fetched = try? await MealDB.meals(withIngredient: term) {
+                            reached = true
+                            meals += fetched
                         }
                     }
-                    break
-                } catch {
-                    continue
+                    // Only try the fallback words if nothing was found
+                    if meals.isEmpty {
+                        for term in plan.fallback {
+                            if let fetched = try? await MealDB.meals(withIngredient: term) {
+                                reached = true
+                                meals += fetched
+                                if !fetched.isEmpty { break }
+                            }
+                        }
+                    }
+                    return (name, meals, reached)
+                }
+            }
+
+            var collected: [(name: String, meals: [MealSummary], reached: Bool)] = []
+            for await result in group {
+                collected.append(result)
+            }
+            return collected
+        }
+
+        for result in results {
+            if result.reached { anySucceeded = true }
+            let daysLeft = urgency[result.name] ?? 0
+            for meal in result.meals {
+                if var existing = found[meal.id] {
+                    if !existing.uses.contains(result.name) { existing.uses.append(result.name) }
+                    existing.soonestDaysLeft = min(existing.soonestDaysLeft, daysLeft)
+                    found[meal.id] = existing
+                } else {
+                    found[meal.id] = RecipeResult(meal: meal, uses: [result.name], soonestDaysLeft: daysLeft)
                 }
             }
         }
 
-        // Meals using the most chosen food first, then the most urgent food
+        // Meals using the most fridge food first, then the most urgent food
         var ranked = found.values.sorted {
             if $0.uses.count != $1.uses.count { return $0.uses.count > $1.uses.count }
             if $0.soonestDaysLeft != $1.soonestDaysLeft { return $0.soonestDaysLeft < $1.soonestDaysLeft }
@@ -275,17 +331,32 @@ struct RecipesView: View {
         let needs = diet
         if !needs.isEmpty {
             loadingMessage = "Checking recipes suit your diet…"
-            var suitable: [RecipeResult] = []
-            for result in ranked.prefix(maxDietChecks) {
-                if let detail = try? await MealDB.meal(id: result.meal.id),
-                   MealDB.suits(detail, needs) {
-                    suitable.append(result)
+            let toCheck = Array(ranked.prefix(maxDietChecks))
+            var suitableIDs: Set<String> = []
+
+            // Check 10 recipes at a time (saved recipes are instant), then keep the original order
+            for start in stride(from: 0, to: toCheck.count, by: 10) {
+                let batch = toCheck[start..<min(start + 10, toCheck.count)].map(\.meal.id)
+                let ids = await withTaskGroup(of: String?.self) { group in
+                    for id in batch {
+                        group.addTask {
+                            guard let detail = try? await MealDB.meal(id: id),
+                                  await MealDB.suits(detail, needs) else { return nil }
+                            return id
+                        }
+                    }
+                    var passed: [String] = []
+                    for await id in group {
+                        if let id { passed.append(id) }
+                    }
+                    return passed
                 }
+                suitableIDs.formUnion(ids)
             }
-            ranked = suitable
+            ranked = toCheck.filter { suitableIDs.contains($0.meal.id) }
         }
 
-        results = ranked
+        allResults = ranked
         failed = !anySucceeded
         isLoading = false
     }

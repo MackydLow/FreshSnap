@@ -129,7 +129,7 @@ struct BadgesSection: View {
         } header: {
             Text("Streaks and badges")
         } footer: {
-            Text("Locked badges show how to earn them.")
+            Text("Each badge shows how to earn it; the text turns green once you have.")
         }
     }
 }
@@ -150,16 +150,15 @@ private struct BadgeTile: View {
             Text(badge.name)
                 .font(.caption.weight(.semibold))
                 .multilineTextAlignment(.center)
-            if !badge.earned {
-                Text(badge.howToEarn)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-            }
+            // Always shown; FreshSnap green once earned, grey until then
+            Text(badge.howToEarn)
+                .font(.caption2.weight(badge.earned ? .semibold : .regular))
+                .foregroundStyle(badge.earned ? Color.accentColor : Color.secondary)
+                .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
         // VoiceOver: "Chef, earned" or "Chef, locked. Cook a recipe…"
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(badge.earned ? "\(badge.name), earned" : "\(badge.name), locked. \(badge.howToEarn)")
+        .accessibilityLabel(badge.earned ? "\(badge.name), earned. \(badge.howToEarn)" : "\(badge.name), locked. \(badge.howToEarn)")
     }
 }

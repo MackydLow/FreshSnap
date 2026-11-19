@@ -19,7 +19,6 @@ struct MealSummary: Identifiable, Hashable {
 }
 
 // nonisolated (Week 9): plain data, so favourites can save and load it from anywhere
-// nonisolated: plain data, so it can be saved and read from anywhere (Week 9)
 nonisolated struct MealIngredient: Identifiable, Codable {
     var id = UUID()
     let name: String
@@ -259,6 +258,30 @@ enum MealDB {
 
         var seen: Set<String> = []
         return terms.filter { seen.insert($0).inserted }   // remove repeats, keep order
+    }
+
+    // Week 9: more recipes per food. "main" words are all searched and combined
+    // (e.g. "chicken breast" AND "chicken"); "fallback" is only used if they find nothing,
+    // so "Sweet potato" doesn't pull in every ordinary potato dish.
+    static func searchPlan(for foodName: String) -> (main: [String], fallback: [String]) {
+        let words = foodName.lowercased()
+            .split { !$0.isLetter }
+            .map(String.init)
+            .filter { $0.count >= 3 && !ignoredWords.contains($0) }
+            .map { replacements[$0] ?? $0 }
+        guard let first = words.first, let last = words.last else { return ([], []) }
+
+        var main: [String] = []
+        if words.count > 1 {
+            main.append(words.joined(separator: " "))
+            main.append((words.dropLast() + [singular(last)]).joined(separator: " "))
+        }
+        main += [first, singular(first)]
+
+        var seen: Set<String> = []
+        main = main.filter { seen.insert($0).inserted }
+        let fallback = [last, singular(last)].filter { seen.insert($0).inserted }
+        return (main, fallback)
     }
 
     // The simple words used to spot fridge food in a recipe's ingredient list.
